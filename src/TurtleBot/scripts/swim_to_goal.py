@@ -95,7 +95,7 @@ def calc_error(pose,target):
 
 def check_if_arrived(pose,target):
     err_pos,_ = calc_error(pose,target)
-    if abs(err_pos) < 0.5:
+    if abs(err_pos) <= 0.05:
         is_arrived = True
         rospy.loginfo('Arrived at target location: %.2f, %.2f with error %.2f' % (target[0],target[1],err_pos))
     else:
@@ -104,7 +104,7 @@ def check_if_arrived(pose,target):
 
 def check_body_angle(pose,target):
     _,err_ang = calc_error(pose,target)
-    if abs(err_ang) < 0.02:
+    if abs(err_ang) <= math.pi/180:
         is_correct_angle = True
         rospy.loginfo('Facing target with orientation %.2f' % pose.theta) 
     else:
