@@ -27,15 +27,15 @@ class SubscriberNodeUpdateGains(SubscriberNode):
         self.gains_obj.update_gains(data)
     
 
-class fakeSubscriberNode(object):
-    '''used to match the interface needed for activating the controller'''
-    def __init__(self,ref_x,ref_y,ref_theta,mode):
-        msg = Reference_Pose()
-        msg.x = ref_x
-        msg.y = ref_y
-        msg.theta = ref_theta
-        msg.mode = mode
-        self.data = msg
+# class fakeSubscriberNode(object):
+#     '''used to match the interface needed for activating the controller'''
+#     def __init__(self,ref_x,ref_y,ref_theta,mode):
+#         msg = Reference_Pose()
+#         msg.x = ref_x
+#         msg.y = ref_y
+#         msg.theta = ref_theta
+#         msg.mode = mode
+#         self.data = msg
 
 class PID_gains(object):
     def __init__(self,Kp,Ki,Kd):
@@ -56,6 +56,7 @@ class err_struct(object):
         self.prev_err = 0
         self.prev_int_err = 0
         self.error_max = 100
+        self.is_first = True # flag used to show max out msg one
     
     def record_err(self,new_err):
         # dt is the time between measurements
@@ -73,20 +74,19 @@ class err_struct(object):
         self.int_err = new_int_err
 
     def accumulate_error(self,new_err):
-        is_first = True
         total_err = self.prev_int_err + new_err
         if total_err > self.error_max:
             total_err = self.error_max
-            if is_first:
-                rospy.loginfo('Upper Error Max Hit')
-                is_first = False
+            if self.is_first:
+                rospy.loginfo('Upper Error Max Hit %.2f' % (self.error_max))
+                self.is_first = False
         elif total_err < self.error_max:
             total_err = -self.error_max
-            if is_first:
-                rospy.loginfo('Lower Error Max Hit')
-                is_first = False
+            if self.is_first:
+                rospy.loginfo('Lower Error Max Hit %.2f' % (-self.error_max))
+                self.is_first = False
         else:
-            is_first = True
+            self.is_first = True
         return total_err
 
     def update_d_error(self,new_err):
@@ -106,7 +106,7 @@ def is_final_angle(pose,ref_theta):
 
 def main():
     rospy.init_node('PID_Controller')
-    # test_mode specifies if 
+    # test_mode specifies if gains are hard coded or received from topic
     test_mode = True
     # setup subscriptions
     pos_node = SubscriberNode(topic='/turtle1/pose',msg = Pose)
@@ -119,7 +119,6 @@ def main():
     dbg = True
     debug_interval = 10
     
-   
     pos_gains = PID_gains(Kp=1.5,Ki=0,Kd=0)
     ang_gains = PID_gains(Kp=3,Ki=0,Kd=0)
     pos_err = err_struct()
@@ -133,31 +132,30 @@ def main():
             activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
         else:
             # gains are hard coded and references are inputted by user
-            mode = request_mode()
-            ref_value = request_ref_point()
-            fake_ref_node = fakeSubscriberNode(*ref_value,mode)
-            activate_controller(pos_node, fake_ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+            # mode = request_mode()
+            # ref_value = request_ref_point()
+            # fake_ref_node = fakeSubscriberNode(*ref_value,mode)
+            activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
 
 ## Controller Functions
-def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations, test_mode):
+def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations):
     is_final_pose = False
     while not is_final_pose and not rospy.is_shutdown():
         is_arrived = util.check_if_arrived(pos_node.data,format_target(ref_node))
-        if test_mode: 
-            if not is_arrived:
-                if ref_node.data.mode == 0:
-                    # first turn to face target, then move to target, then adjust to final reference angle
-                    rospy.loginfo('Using Mode 0')
-                    turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
-                    move_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, pos_err, iterations)
-                    turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
-                    is_final_pose = True
+        if not is_arrived:
+            if ref_node.data.mode == 0:
+                # first turn to face target, then move to target, then adjust to final reference angle
+                rospy.loginfo('Using Mode 0')
+                turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
+                move_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, pos_err, iterations)
+                turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
+                is_final_pose = True
 
-                elif ref_node.data.mode == 1:
-                    # turn and move to target at the same time
-                    rospy.loginfo('Using Mode 1')
-                    move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations)
-                    is_final_pose = True
+            elif ref_node.data.mode == 1:
+                # turn and move to target at the same time
+                rospy.loginfo('Using Mode 1')
+                move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations)
+                is_final_pose = True
 
 def move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
         # move and turn to target
@@ -226,6 +224,15 @@ def move_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, p
         r.sleep()
 
 ## Utility Functions
+def is_msg_same(msg1,msg2):
+    '''compares if two messages are the same or different'''
+    fields = msg1.__slots__
+    for field in fields:
+        if getattr(msg1,field) != getattr(msg2,field):
+            return False
+    return True       
+
+
 def format_target(node):
     return (node.data.pose.x, node.data.pose.y)
 
