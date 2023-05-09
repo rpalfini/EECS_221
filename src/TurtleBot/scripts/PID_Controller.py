@@ -1,11 +1,12 @@
 #!/usr/bin/env python2
 
 import rospy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Point, Quaternion, Pose
 from gazebo_msgs.msg import ModelStates
-from turtlesim.msg import Pose
+# from turtlesim.msg import Pose
 from TurtleBot.msg import Reference_Pose, PID_Gains
 import swim_to_goal as util
+from tf.transformations import euler_from_quaternion
 
 class SubscriberNode(object):
     def __init__(self,topic,msg):
@@ -25,17 +26,14 @@ class SubscriberNodeUpdateGains(SubscriberNode):
     def callback(self, data):
         super().callback(data)
         self.gains_obj.update_gains(data)
-    
 
-# class fakeSubscriberNode(object):
-#     '''used to match the interface needed for activating the controller'''
-#     def __init__(self,ref_x,ref_y,ref_theta,mode):
-#         msg = Reference_Pose()
-#         msg.x = ref_x
-#         msg.y = ref_y
-#         msg.theta = ref_theta
-#         msg.mode = mode
-#         self.data = msg
+class SubscriberNodeUpdatePose(SubscriberNode):
+    def __init__(self, topic, msg):
+        super().__init__(topic, msg)
+
+    def callback(self, data):
+        super().callback(data)
+        self.gains_obj.update_gains(data)
 
 class PID_gains(object):
     def __init__(self,Kp,Ki,Kd):
@@ -44,9 +42,11 @@ class PID_gains(object):
         self.Kd = Kd
 
     def update_gains(self,gains_msg):
-        self.Kp = gains_msg.Kp
-        self.Ki = gains_msg.Ki
-        self.Kd = gains_msg.Kd
+        if not gains_msg.K == self.K and gains_msg.K == self.K and gains_msg.K == self.K:
+            self.Kp = gains_msg.Kp
+            self.Ki = gains_msg.Ki
+            self.Kd = gains_msg.Kd            
+            debug_info('New Gains:',Kp=self.Kp,Ki=self.Ki,Kd=self.Kd)
 
 class err_struct(object):
     def __init__(self):
@@ -111,8 +111,9 @@ def main():
     # setup subscriptions
     pos_node = SubscriberNode(topic='/turtle1/pose',msg = Pose)
     ref_node = SubscriberNode(topic='/reference_pose',msg = Reference_Pose)
-    pos_gains_node = SubscriberNode(topic='/pos_gains',msg = PID_Gains)
-    ang_gains_node = SubscriberNode(topic='/ang_gains',msg = PID_Gains)
+    if test_mode:
+        pos_gains_node = SubscriberNodeUpdateGains(topic='/pos_gains',msg = PID_Gains)
+        ang_gains_node = SubscriberNodeUpdateGains(topic='/ang_gains',msg = PID_Gains)
     # setup publisher
     pub = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
     r = rospy.Rate(10)
@@ -127,15 +128,16 @@ def main():
     iterations = 0 # used for debugging
 
     while not rospy.is_shutdown():
-        if test_mode:
-            # in this mode gains are received via topic
-            activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
-        else:
-            # gains are hard coded and references are inputted by user
-            # mode = request_mode()
-            # ref_value = request_ref_point()
-            # fake_ref_node = fakeSubscriberNode(*ref_value,mode)
-            activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+        activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+        # if test_mode:
+        #     # in this mode gains are received via topic
+        #     activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+        # else:
+        #     # gains are hard coded
+        #     # mode = request_mode()
+        #     # ref_value = request_ref_point()
+        #     # fake_ref_node = fakeSubscriberNode(*ref_value,mode)
+        #     activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
 
 ## Controller Functions
 def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations):
@@ -176,7 +178,7 @@ def move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang
         r.sleep()
 
 def turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations):
-    while not is_final_angle(pos_node.data.pose,ref_node.data.pose.theta) and not rospy.is_shutdown():
+    while not is_final_angle(pos_node.data.pose,ref_node.data.theta) and not rospy.is_shutdown():
         #face final reference pose
         rospy.loginfo('Turning To Final Reference Pose')
         move_cmd = Twist()
@@ -237,7 +239,7 @@ def format_target(node):
     return (node.data.pose.x, node.data.pose.y)
 
 def request_mode():
-    return util.request_number('')
+    return util.request_number('mode',bounds=(0,1))
 
 def request_ref_point():
     x = util.request_number('x',is_bounds=False)
