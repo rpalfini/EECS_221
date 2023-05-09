@@ -5,6 +5,7 @@ from geometry_msgs.msg import Twist
 from turtlesim.msg import Pose
 from TurtleBot.msg import Reference_Pose
 import swim_to_goal as util
+import click
 
 class SubscriberNode(object):
     def __init__(self,topic,msg):
@@ -23,6 +24,15 @@ class SubscriberNode(object):
         #     self.time_since_last_callback = callback_time - self.last_callback_time
         # self.last_callback_time = callback_time
 
+class fakeSubscriberNode(object):
+    '''used to match the interface needed for activating the controller'''
+    def __init__(self,ref_x,ref_y,ref_theta,mode):
+        msg = Reference_Pose()
+        msg.x = ref_x
+        msg.y = ref_y
+        msg.theta = ref_theta
+        msg.mode = mode
+        self.data = msg
 class PID_gains(object):
     def __init__(self,Kp,Ki,Kd):
         self.Kp = Kp
@@ -109,17 +119,27 @@ def debug_info(info,**kwargs):
         output_string =+ str(key) + ": " + str(value) + ','
     rospy.loginfo(output_string[:-2])
 
+def request_mode():
+    return util.request_number('')
+
+def request_ref_point():
+    x = util.request_number('x',is_bounds=False)
+    y = util.request_number('y',is_bounds=False)
+    theta = util.request_number('theta (radians)',is_bounds=False)
+    return (x,y,theta)
 
 def main():
     rospy.init_node('PID_Controller')
     # setup subscriptions
     pos_node = SubscriberNode(topic='/turtle1/pose',msg = Pose)
     ref_node = SubscriberNode(topic='/reference_pose',msg = Reference_Pose)
+    mp_node = SubscriberNode(topic='/')
     # setup publisher
     pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
     r = rospy.Rate(10)
     dbg = True
     debug_interval = 10
+    test_mode = True
    
     pos_gains = PID_gains(Kp=1.5,Ki=0,Kd=0)
     ang_gains = PID_gains(Kp=3,Ki=0,Kd=0)
@@ -128,7 +148,20 @@ def main():
     
     iterations = 0 # used for debugging
 
-    while not rospy.is_shutdown():
+    if test_mode:
+        # in this mode gains and references are comanded my motion planner node
+        activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+    else:
+        # gains are hard coded and references are inputted by user
+        mode = request_mode()
+        ref_value = request_ref_point()
+        fake_ref_node = fakeSubscriberNode(*ref_value,mode)
+        activate_controller(pos_node, fake_ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+
+
+def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations):
+    is_final_pose = False
+    while not is_final_pose() and not rospy.is_shutdown():
         is_arrived = util.check_if_arrived(pos_node.data,format_target(ref_node))
         if not is_arrived:
             if ref_node.data.mode == 0:
@@ -137,11 +170,13 @@ def main():
                 turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
                 move_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, pos_err, iterations)
                 turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
+                is_final_pose = True
 
             elif ref_node.data.mode == 1:
                 # turn and move to target at the same time
                 rospy.loginfo('Using Mode 1')
                 move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations)
+                is_final_pose = True
 
 def move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
         # move and turn to target

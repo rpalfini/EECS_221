@@ -113,33 +113,42 @@ def check_body_angle(pose,target):
 
 def request_point():
     x_val = request_number('x')
-    rospy.loginfo('entered %.2f' % x_val)
     y_val = request_number('y')
-    rospy.loginfo('entered %.2f' % y_val)
+
     return (x_val, y_val)
 
-def request_number(var_name):
-    max_in = 9
-    min_in = 1
+def request_number(var_name,is_bounds=True,bounds=(1,9)):
+    max_in = bounds[1]
+    min_in = bounds[0]
     is_valid = False
-    while not is_valid:
-        val = click.prompt('Enter Target %s coordinate between 1-9 or q to exit' % var_name)
-        try:
-            val = float(val)
-        except:
-            if val == 'q':
-                rospy.signal_shutdown('Node shutting down')
-                out_val = 0
-                break
+    if is_bounds:
+        while not is_valid:
+            val = click.prompt('Enter Target %s coordinate between %.2f-%.2f or q to exit' % (var_name,min_in,max_in))
+            try:
+                val = float(val)
+            except:
+                if val == 'q':
+                    rospy.signal_shutdown('Node shutting down')
+                    out_val = 0
+                    break
+                else:
+                    rospy.loginfo('Enter valid number characters')
+                continue
+            if val >= min_in and val <= max_in:
+                out_val = val
+                is_valid = True
             else:
+                rospy.loginfo('Enter number between %.2f-%.2f' % (min_in,max_in))
+    else:
+        while not is_valid:
+            val = click.prompt('Enter Target %s coordinate' % var_name)
+            try:
+                out_val = float(val)
+                is_valid = True
+            except:
                 rospy.loginfo('Enter valid number characters')
-            continue
-        if val >= min_in and val <= max_in:
-            out_val = val
-            is_valid = True
-        else:
-            rospy.loginfo('Enter number between 0-9')
-
+    
+    rospy.loginfo('entered %.2f' % out_val)
     return out_val
 
 
