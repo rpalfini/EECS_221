@@ -6,6 +6,7 @@ from turtlesim.msg import Pose
 import numpy as np
 import click
 import math
+import PID_Controller as pid
 
 class SubscriberNode(object):
     def __init__(self):
@@ -77,6 +78,8 @@ def main_swim():
                 r.sleep()
 
 def calc_error(cur_state,target):
+    # cur_state is a dictonary with field pose (geometry_msg Point, and field theta with a radian angle 
+    # target is a length 2 iterable that has the x and y coordinates of final location
     pose = cur_state['pose']
     theta = cur_state['theta']
     x_err = target[0] - pose.x 
@@ -92,7 +95,10 @@ def calc_error(cur_state,target):
     if dot_product < 0:
         err_pos = -err_pos
     
-    err_ang = math.atan2(y_err,x_err) - pose.theta 
+    err_ang = math.atan2(y_err,x_err) - theta 
+    # err_ang = 
+    pid.debug_info("calc_error",theta_ref=math.atan2(y_err,x_err),cur_theta=theta)
+
     return err_pos, err_ang
 
 def check_if_arrived(pose,target):

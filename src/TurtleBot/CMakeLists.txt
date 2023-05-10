@@ -54,6 +54,8 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    PID_Gains.msg
    Reference_Pose.msg
+   err_vals.msg
+   cur_pose.msg
  )
 
 ## Generate services in the 'srv' folder

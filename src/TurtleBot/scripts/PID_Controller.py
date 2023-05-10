@@ -4,15 +4,15 @@ import rospy
 from geometry_msgs.msg import Twist, Point, Quaternion, Pose
 from gazebo_msgs.msg import ModelStates
 # from turtlesim.msg import Pose
-from TurtleBot.msg import Reference_Pose, PID_Gains
+from TurtleBot.msg import Reference_Pose, PID_Gains, err_vals, cur_pose
 import swim_to_goal as util
 from tf.transformations import euler_from_quaternion
 import math
 import numpy as np
 
 class SubscriberNode(object):
-    def __init__(self,topic,msg):
-        self.data = None
+    def __init__(self,topic,msg,msg_object):
+        self.data = msg_object
         self.prev_data = None
         rospy.Subscriber(topic, msg, self.callback)
 
@@ -21,25 +21,25 @@ class SubscriberNode(object):
         self.data = data
 
 class SubscriberNodeUpdateGains(SubscriberNode):
-    def __init__(self, topic, msg, gains_obj):
-        super().__init__(topic, msg)
+    def __init__(self, topic, msg,msg_object, gains_obj):
+        super(SubscriberNodeUpdateGains, self).__init__(topic, msg, msg_object)
         self.gains_obj = gains_obj
 
     def callback(self, data):
-        super().callback(data)
+        super(SubscriberNodeUpdateGains, self).callback(data)
         self.gains_obj.update_gains(data)
 
-class SubscriberNodeUpdatePose(SubscriberNode):
-    def __init__(self, topic, msg):
-        super().__init__(topic, msg)
+# class SubscriberNodeUpdatePose(SubscriberNode):
+#     def __init__(self, topic, msg):
+#         super().__init__(topic, msg)
 
-    def callback(self, data):
-        super().callback(data)
-        self.gains_obj.update_pose_info(data)
+#     def callback(self, data):
+#         super().callback(data)
+#         self.gains_obj.update_pose_info(data)
 
-    def update_pose_info(data):
-        # used for Gazebo/model_State input
-        return None
+    # def update_pose_info(data):
+    #     # used for Gazebo/model_State input
+    #     return None
 
 class PID_gains(object):
     def __init__(self,Kp,Ki,Kd):
@@ -48,17 +48,17 @@ class PID_gains(object):
         self.Kd = Kd
 
     def update_gains(self,gains_msg):
-        if not gains_msg.K == self.K and gains_msg.K == self.K and gains_msg.K == self.K:
+        if not gains_msg.Kp == self.Kp and gains_msg.Ki == self.Ki and gains_msg.Kd == self.Kd:
             self.Kp = gains_msg.Kp
             self.Ki = gains_msg.Ki
             self.Kd = gains_msg.Kd            
-            debug_info('New Gains:',Kp=self.Kp,Ki=self.Ki,Kd=self.Kd)
+            debug_info("New Gains:",Kp=self.Kp,Ki=self.Ki,Kd=self.Kd)
 
 class err_struct(object):
     def __init__(self):
         self.err = 0
         self.int_err = 0
-        self.deriv_error = 0
+        self.deriv_err = 0
         self.prev_err = 0
         self.prev_int_err = 0
         self.error_max = 100
@@ -96,24 +96,36 @@ class err_struct(object):
         return total_err
 
     def update_d_error(self,new_err):
-        self.deriv_error = (new_err - self.prev_err)
+        self.deriv_err = (new_err - self.prev_err)
+
+    def make_err_val_msg(self):
+        out_msg = err_vals()
+        out_msg.err = self.err 
+        out_msg.int_err = self.int_err
+        out_msg.deriv_err = self.deriv_err
+        out_msg.prev_err = self.prev_err
+        out_msg.prev_int_err = self.prev_int_err
+        return out_msg
 
 def pid(gains,err_struct):
-    return gains.Kp*err_struct.err + gains.Ki*err_struct.int_err + gains.Kd*err_struct.d_err
+    return gains.Kp*err_struct.err + gains.Ki*err_struct.int_err + gains.Kd*err_struct.deriv_err
 
 def main():
     rospy.init_node('PID_Controller')
     # test_mode specifies if gains are hard coded or received from topic
     test_mode = True
     # setup subscriptions
-    pos_node = SubscriberNode(topic='/Gazebo/Model_States',msg = ModelStates)
-    ref_node = SubscriberNode(topic='/reference_pose',msg = Reference_Pose)
+    pos_node = SubscriberNode(topic='/gazebo/model_states',msg = ModelStates,msg_object = ModelStates())
+    ref_node = SubscriberNode(topic='/reference_pose',msg = Reference_Pose,msg_object = Reference_Pose())
     
     # setup publisher
     pub = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
+    pub_err = rospy.Publisher('/ang_err', err_vals, queue_size=5)
+    # pub_rec_pose = rospy.Publisher('/rec_pose', cur_pose, queue_size=5)
     r = rospy.Rate(10)
+    
     dbg = True
-    debug_interval = 10
+    debug_interval = 20
     
     pos_gains = PID_gains(Kp=1.5,Ki=0,Kd=0)
     ang_gains = PID_gains(Kp=3,Ki=0,Kd=0)
@@ -121,16 +133,16 @@ def main():
     ang_err = err_struct()
     
     if test_mode:
-        pos_gains_node = SubscriberNodeUpdateGains(topic='/pos_gains',msg = PID_Gains,gains_obj=pos_gains)
-        ang_gains_node = SubscriberNodeUpdateGains(topic='/ang_gains',msg = PID_Gains,gains_obj=ang_gains)
+        pos_gains_node=SubscriberNodeUpdateGains(topic='/pos_gains',msg=PID_Gains,msg_object=PID_Gains(),gains_obj=pos_gains)
+        ang_gains_node=SubscriberNodeUpdateGains(topic='/ang_gains',msg=PID_Gains,msg_object=PID_Gains(),gains_obj=ang_gains)
 
-    iterations = 0 # used for debugging
+    iterations=0 # used for debugging
 
     while not rospy.is_shutdown():
-        activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+        activate_controller(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
 
 ## Controller Functions
-def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations):
+def activate_controller(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations):
     is_final_pose = False
     while not is_final_pose and not rospy.is_shutdown():
         is_arrived = util.check_if_arrived(format_model_state(pos_node),format_target(ref_node))
@@ -138,10 +150,11 @@ def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gai
             if ref_node.data.mode == 0:
                 # first turn to face target, then move to target, then adjust to final reference angle
                 rospy.loginfo('Using Mode 0')
-                turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
+                turn_to_target(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, ang_gains, ang_err, iterations)
                 move_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, pos_err, iterations)
                 turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
                 is_final_pose = True
+                iterations = 0
 
             elif ref_node.data.mode == 1:
                 # turn and move to target at the same time
@@ -149,68 +162,82 @@ def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gai
                 move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations)
                 turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
                 is_final_pose = True
+                iterations = 0
+    move_cmd = Twist()
+    pub.publish(move_cmd)
+
 
 def move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
         # move and turn to target
         rospy.loginfo('Moving And Turning To Target')
-        move_cmd = Twist()
-        err_pos, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
-        ang_err.record_err(err_ang)
-        pos_err.record_err(err_pos)
-        move_cmd.angular.z = pid(ang_gains,ang_err)
-        move_cmd.linear.x = pid(pos_gains, pos_err)
-        
-        if debug_interval(dbg,debug_interval,iterations):
-            debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_error,prev_err=pos_err.prev_error,prev_int_err=pos_err.prev_int_err)
-            debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_error,prev_err=ang_err.prev_error,prev_int_err=ang_err.prev_int_err)
-        
-        pub.publish(move_cmd)
-        iterations += 1
-        r.sleep()
+        while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
+            
+            move_cmd = Twist()
+            err_pos, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+            ang_err.record_err(err_ang)
+            pos_err.record_err(err_pos)
+            move_cmd.angular.z = pid(ang_gains,ang_err)
+            move_cmd.linear.x = pid(pos_gains, pos_err)
+            
+            if is_debug_iter(dbg,debug_interval,iterations):
+                debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_err,prev_err=pos_err.prev_err,prev_int_err=pos_err.prev_int_err)
+                debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_err,prev_err=ang_err.prev_err,prev_int_err=ang_err.prev_int_err)
+            
+            pub.publish(move_cmd)
+            iterations += 1
+            r.sleep()
 
 def turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations):
+    rospy.loginfo('Turning To Final Reference Pose')
     while not is_final_angle(format_model_state(pos_node),ref_node.data.theta) and not rospy.is_shutdown():
         #face final reference pose
-        rospy.loginfo('Turning To Final Reference Pose')
+        
         move_cmd = Twist()
         _, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         ang_err.record_err(err_ang)
         move_cmd.angular.z = pid(ang_gains,ang_err)
 
-        if debug_interval(dbg,debug_interval,iterations):
-            debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_error,prev_err=ang_err.prev_error,prev_int_err=ang_err.prev_int_err)
+        if is_debug_iter(dbg,debug_interval,iterations):
+            debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_err,prev_err=ang_err.prev_err,prev_int_err=ang_err.prev_int_err)
         
         pub.publish(move_cmd)
         iterations += 1
         r.sleep()
 
-def turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations):
-    while not util.check_body_angle(format_model_state(pos_node).pose.position,format_target(ref_node)) and not rospy.is_shutdown():
+def turn_to_target(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, ang_gains, ang_err, iterations):
+    rospy.loginfo('Turning To Target')
+    while not util.check_body_angle(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
         # turn to face target
-        rospy.loginfo('Turning To Target')
+        
         move_cmd = Twist() #reinitalize move_cmd
-        _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+        err_pos,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         ang_err.record_err(err_ang)
+        err_msg = ang_err.make_err_val_msg()
         move_cmd.angular.z = pid(ang_gains,ang_err)
 
-        if debug_interval(dbg,debug_interval,iterations):
-            debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_error,prev_err=ang_err.prev_error,prev_int_err=ang_err.prev_int_err)
+        # if is_debug_iter(dbg,debug_interval,iterations):
+        #     debug_info("Calc_err",err_ang=err_ang,err_pos=err_pos)
+        #     debug_info("Ang_gains:",Kp=ang_gains.Kp,Ki=ang_gains.Ki,Kd=ang_gains.Kd)
+        #     debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_err,prev_err=ang_err.prev_err,prev_int_err=ang_err.prev_int_err)
         
+        pub_err.publish(err_msg)
         pub.publish(move_cmd)
         iterations += 1
         r.sleep()
 
 def move_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, pos_err, iterations):
+    rospy.loginfo('Moving To Target')
     while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown(): 
         # move to target
-        rospy.loginfo('Moving To Target')
+        
         move_cmd = Twist()
         err_pos,_ = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         pos_err.record_err(err_pos)
         move_cmd.linear.x = pid(pos_gains, pos_err)
 
-        if debug_interval(dbg,debug_interval,iterations):
-            debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_error,prev_err=pos_err.prev_error,prev_int_err=pos_err.prev_int_err)
+        if is_debug_iter(dbg,debug_interval,iterations):
+            debug_info("Pos_gains:",Kp=pos_gains.Kp,Ki=pos_gains.Ki,Kd=pos_gains.Kd)
+            debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_err,prev_err=pos_err.prev_err,prev_int_err=pos_err.prev_int_err)
         
         pub.publish(move_cmd)
         iterations += 1
@@ -241,8 +268,14 @@ def format_target(node):
 def format_model_state(node):
     # this expects node of type gazebo_msg/model_state
     euler_angs = quaternion_to_euler(node.data.pose.orientation)
-    ref_dict = {'pose': node.data.pose.position, 'theta': euler_angs[2]} # euler_angs[2] corresponds to the yaw
+    ref_dict = {'pose': node.data.pose[0].position, 'theta': euler_angs[2]} # euler_angs[2] corresponds to the yaw
     return ref_dict
+
+# def format_model_state(data):
+#     # this expects node of type gazebo_msg/model_state
+#     euler_angs = quaternion_to_euler(data.pose.orientation)
+#     ref_dict = {'pose': data.pose.position, 'theta': euler_angs[2]} # euler_angs[2] corresponds to the yaw
+#     return ref_dict
 
 def quaternion_to_euler(orientation):
     # takes quaternion object and converts it euler angles
@@ -250,7 +283,7 @@ def quaternion_to_euler(orientation):
     euler = euler_from_quaternion(quaternion)
     return euler
 
-def debug_interval(dbg_state,iterations,interval):
+def is_debug_iter(dbg_state,interval,iterations):
     if dbg_state and iterations % interval == 0:
         return True
     else:
@@ -259,7 +292,7 @@ def debug_interval(dbg_state,iterations,interval):
 def debug_info(info,**kwargs):
     output_string = info + " "
     for key,value in kwargs.iteritems():
-        output_string =+ str(key) + ": " + str(value) + ','
+        output_string += str(key) + ": " + str(value) + ','
     rospy.loginfo(output_string[:-2])
 
 if __name__ == "__main__":
