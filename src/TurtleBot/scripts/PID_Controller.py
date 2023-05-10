@@ -7,6 +7,8 @@ from gazebo_msgs.msg import ModelStates
 from TurtleBot.msg import Reference_Pose, PID_Gains
 import swim_to_goal as util
 from tf.transformations import euler_from_quaternion
+import math
+import numpy as np
 
 class SubscriberNode(object):
     def __init__(self,topic,msg):
@@ -33,7 +35,11 @@ class SubscriberNodeUpdatePose(SubscriberNode):
 
     def callback(self, data):
         super().callback(data)
-        self.gains_obj.update_gains(data)
+        self.gains_obj.update_pose_info(data)
+
+    def update_pose_info(data):
+        # used for Gazebo/model_State input
+        return None
 
 class PID_gains(object):
     def __init__(self,Kp,Ki,Kd):
@@ -95,21 +101,12 @@ class err_struct(object):
 def pid(gains,err_struct):
     return gains.Kp*err_struct.err + gains.Ki*err_struct.int_err + gains.Kd*err_struct.d_err
 
-def is_final_angle(pose,ref_theta):
-    # checks if body is at final reference angle
-    err_ang = ref_theta - pose.theta
-    if abs(err_ang) < util.math.pi/180:
-        result = True
-    else:
-        result = False
-    return result
-
 def main():
     rospy.init_node('PID_Controller')
     # test_mode specifies if gains are hard coded or received from topic
     test_mode = True
     # setup subscriptions
-    pos_node = SubscriberNode(topic='/turtle1/pose',msg = Pose)
+    pos_node = SubscriberNode(topic='/Gazebo/Model_States',msg = ModelStates)
     ref_node = SubscriberNode(topic='/reference_pose',msg = Reference_Pose)
     if test_mode:
         pos_gains_node = SubscriberNodeUpdateGains(topic='/pos_gains',msg = PID_Gains)
@@ -143,7 +140,7 @@ def main():
 def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations):
     is_final_pose = False
     while not is_final_pose and not rospy.is_shutdown():
-        is_arrived = util.check_if_arrived(pos_node.data,format_target(ref_node))
+        is_arrived = util.check_if_arrived(format_model_state(pos_node),format_target(ref_node))
         if not is_arrived:
             if ref_node.data.mode == 0:
                 # first turn to face target, then move to target, then adjust to final reference angle
@@ -157,13 +154,14 @@ def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gai
                 # turn and move to target at the same time
                 rospy.loginfo('Using Mode 1')
                 move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations)
+                turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations)
                 is_final_pose = True
 
 def move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
         # move and turn to target
         rospy.loginfo('Moving And Turning To Target')
         move_cmd = Twist()
-        err_pos, err_ang = util.calc_error(pos_node.data,format_target(ref_node))
+        err_pos, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         ang_err.record_err(err_ang)
         pos_err.record_err(err_pos)
         move_cmd.angular.z = pid(ang_gains,ang_err)
@@ -178,11 +176,11 @@ def move_and_turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang
         r.sleep()
 
 def turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations):
-    while not is_final_angle(pos_node.data.pose,ref_node.data.theta) and not rospy.is_shutdown():
+    while not is_final_angle(format_model_state(pos_node),ref_node.data.theta) and not rospy.is_shutdown():
         #face final reference pose
         rospy.loginfo('Turning To Final Reference Pose')
         move_cmd = Twist()
-        _, err_ang = util.calc_error(pos_node.data,format_target(ref_node))
+        _, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         ang_err.record_err(err_ang)
         move_cmd.angular.z = pid(ang_gains,ang_err)
 
@@ -194,11 +192,11 @@ def turn_to_ref_theta(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains
         r.sleep()
 
 def turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, ang_err, iterations):
-    while not util.check_body_angle(pos_node.data,format_target(ref_node)) and not rospy.is_shutdown():
+    while not util.check_body_angle(format_model_state(pos_node).pose.position,format_target(ref_node)) and not rospy.is_shutdown():
         # turn to face target
         rospy.loginfo('Turning To Target')
         move_cmd = Twist() #reinitalize move_cmd
-        _,err_ang = util.calc_error(pos_node.data,format_target(ref_node))
+        _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         ang_err.record_err(err_ang)
         move_cmd.angular.z = pid(ang_gains,ang_err)
 
@@ -210,11 +208,11 @@ def turn_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, ang_gains, a
         r.sleep()
 
 def move_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, pos_err, iterations):
-    while not util.check_if_arrived(pos_node.data,format_target(ref_node)) and not rospy.is_shutdown(): 
+    while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown(): 
         # move to target
         rospy.loginfo('Moving To Target')
         move_cmd = Twist()
-        err_pos,_ = util.calc_error(pos_node.data,format_target(ref_node))
+        err_pos,_ = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         pos_err.record_err(err_pos)
         move_cmd.linear.x = pid(pos_gains, pos_err)
 
@@ -225,6 +223,15 @@ def move_to_target(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, p
         iterations += 1
         r.sleep()
 
+def is_final_angle(cur_state,ref_theta):
+    # checks if body is at final reference angle
+    err_ang = ref_theta - cur_state['theta']
+    if abs(err_ang) < math.pi/180:
+        result = True
+    else:
+        result = False
+    return result
+
 ## Utility Functions
 def is_msg_same(msg1,msg2):
     '''compares if two messages are the same or different'''
@@ -234,9 +241,21 @@ def is_msg_same(msg1,msg2):
             return False
     return True       
 
-
 def format_target(node):
-    return (node.data.pose.x, node.data.pose.y)
+    # expects Reference message
+    return (node.data.point.x, node.data.point.y)
+
+def format_model_state(node):
+    # this expects node of type gazebo_msg/model_state
+    euler_angs = quaternion_to_euler(node.data.pose.orientation)
+    ref_dict = {'pose': node.data.pose.position, 'theta': euler_angs[2]} # euler_angs[2] corresponds to the yaw
+    return ref_dict
+
+def quaternion_to_euler(orientation):
+    # takes quaternion object and converts it euler angles
+    quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
+    euler = euler_from_quaternion(quaternion)
+    return euler
 
 def request_mode():
     return util.request_number('mode',bounds=(0,1))

@@ -76,7 +76,9 @@ def main_swim():
                 iterations += 1
                 r.sleep()
 
-def calc_error(pose,target):
+def calc_error(cur_state,target):
+    pose = cur_state['pose']
+    theta = cur_state['theta']
     x_err = target[0] - pose.x 
     y_err = target[1] - pose.y
     err_pos = math.sqrt(x_err**2 + y_err**2)
@@ -84,7 +86,7 @@ def calc_error(pose,target):
     turtle_pos = np.array([pose.x,pose.y])
     target_vec = np.array([target[0],target[1]])
     vec_sub = target_vec - turtle_pos
-    turtle_vec = np.array([pose.x*(math.cos(pose.theta)),pose.y*(math.sin(pose.theta))])
+    turtle_vec = np.array([pose.x*(math.cos(theta)),pose.y*(math.sin(theta))])
     dot_product = np.dot(turtle_vec,vec_sub)
     # rospy.loginfo('dot product = %.2f' % dot_product)
     if dot_product < 0:
