@@ -108,9 +108,7 @@ def main():
     # setup subscriptions
     pos_node = SubscriberNode(topic='/Gazebo/Model_States',msg = ModelStates)
     ref_node = SubscriberNode(topic='/reference_pose',msg = Reference_Pose)
-    if test_mode:
-        pos_gains_node = SubscriberNodeUpdateGains(topic='/pos_gains',msg = PID_Gains)
-        ang_gains_node = SubscriberNodeUpdateGains(topic='/ang_gains',msg = PID_Gains)
+    
     # setup publisher
     pub = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
     r = rospy.Rate(10)
@@ -122,19 +120,14 @@ def main():
     pos_err = err_struct()
     ang_err = err_struct()
     
+    if test_mode:
+        pos_gains_node = SubscriberNodeUpdateGains(topic='/pos_gains',msg = PID_Gains,gains_obj=pos_gains)
+        ang_gains_node = SubscriberNodeUpdateGains(topic='/ang_gains',msg = PID_Gains,gains_obj=ang_gains)
+
     iterations = 0 # used for debugging
 
     while not rospy.is_shutdown():
         activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
-        # if test_mode:
-        #     # in this mode gains are received via topic
-        #     activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
-        # else:
-        #     # gains are hard coded
-        #     # mode = request_mode()
-        #     # ref_value = request_ref_point()
-        #     # fake_ref_node = fakeSubscriberNode(*ref_value,mode)
-        #     activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
 
 ## Controller Functions
 def activate_controller(pos_node, ref_node, pub, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations):
@@ -256,15 +249,6 @@ def quaternion_to_euler(orientation):
     quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
     euler = euler_from_quaternion(quaternion)
     return euler
-
-def request_mode():
-    return util.request_number('mode',bounds=(0,1))
-
-def request_ref_point():
-    x = util.request_number('x',is_bounds=False)
-    y = util.request_number('y',is_bounds=False)
-    theta = util.request_number('theta (radians)',is_bounds=False)
-    return (x,y,theta)
 
 def debug_interval(dbg_state,iterations,interval):
     if dbg_state and iterations % interval == 0:
