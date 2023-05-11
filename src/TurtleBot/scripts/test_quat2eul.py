@@ -25,10 +25,33 @@ from TurtleBot.msg import Reference_Pose, PID_Gains, cur_pose
 # print "Pitch:", euler[1]
 # print "Yaw:", euler[2]
 
-pos_node = pid.SubscriberNode(topic='/gazebo/model_states',msg = ModelStates,msg_object = ModelStates())
+def callback(msg):
+    poses = msg.pose
+    # Print the poses of the models
+    for i, pose in enumerate(poses):
+        print('start')
+        print("Model", i+1, "Pose:")
+        print("Position: ", pose.position)
+        print("Orientation: ", pose.orientation)
+        print("")
 
-euler = pid.format_model_state(pos_node)
-print "Yaw:", euler["theta"]
-# Print the Euler angles
+if __name__ == "__main__":
+    rospy.init_node('test_subscriber')
+
+    # rospy.Subscriber('/gazebo/model_states', ModelStates, callback)
+
+    # rospy.spin()
+    pos_node = pid.SubscriberNode(topic='/gazebo/model_states',msg = ModelStates,msg_object = ModelStates())
+    while not rospy.is_shutdown():
+        # poses = pos_node.data.pose
+        # print(type(poses))
+        # print(len(poses))
+        # if len(poses) != 0:
+        #     print(poses[1])
+        
+        # print(pos_node.data.pose)
+        euler = pid.format_model_state(pos_node)
+        print "Yaw:", euler["theta"]
+        # Print the Euler angles
 
 

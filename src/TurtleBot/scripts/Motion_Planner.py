@@ -45,18 +45,19 @@ def main():
     is_user_input = True
     r = rospy.Rate(10)
     
-    pos_node = pid.SubscriberNode(topic='/Gazebo/Model_States',msg=pid.ModelStates,msg_object=pid.ModelStates())
+    pos_node = pid.SubscriberNode(topic='/gazebo/model_states',msg=pid.ModelStates,msg_object=pid.ModelStates())
     pub_ref_pose = rospy.Publisher('/reference_pose', Reference_Pose, queue_size=5)
     # pub_pos_gains = rospy.Publisher('/pos_gains', PID_Gains, queue_size=5)
     # pub_ang_gains = rospy.Publisher('/ang_gains', PID_Gains, queue_size=5)
     
     # else:
     #     ref_pose = 
-
+    ref_pose = request_and_create()
     while not rospy.is_shutdown():
-        if is_user_input:
+        if is_user_input and is_goal_state(pos_node,ref_pose):
             # mode for testing pid controller
             ref_pose = request_and_create()
+        
             
         while not rospy.is_shutdown() and not is_goal_state(pos_node,ref_pose):
             pub_ref_pose.publish(ref_pose)

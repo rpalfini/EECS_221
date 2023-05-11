@@ -97,7 +97,7 @@ def calc_error(cur_state,target):
     
     err_ang = math.atan2(y_err,x_err) - theta 
     # err_ang = 
-    pid.debug_info("calc_error",theta_ref=math.atan2(y_err,x_err),cur_theta=theta)
+    # pid.debug_info("calc_error",theta_ref=math.atan2(y_err,x_err),cur_theta=theta)
 
     return err_pos, err_ang
 
@@ -105,7 +105,7 @@ def check_if_arrived(pose,target):
     err_pos,_ = calc_error(pose,target)
     if abs(err_pos) <= 0.05:
         is_arrived = True
-        rospy.loginfo('Arrived at target location: %.2f, %.2f with error %.2f' % (target[0],target[1],err_pos))
+        rospy.loginfo('Arrived at target location: %.2f, %.2f with error %.3f' % (target[0],target[1],err_pos))
     else:
         is_arrived = False
     return is_arrived
@@ -114,7 +114,7 @@ def check_body_angle(pose,target):
     _,err_ang = calc_error(pose,target)
     if abs(err_ang) <= math.pi/180:
         is_correct_angle = True
-        rospy.loginfo('Facing target with orientation %.2f' % pose.theta) 
+        rospy.loginfo('Facing target with orientation %.2f' % pose['theta']) 
     else:
         is_correct_angle = False
     return is_correct_angle
