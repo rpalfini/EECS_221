@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   turtlesim
   gazebo_msgs
+  nav_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -79,6 +80,7 @@ generate_messages(
   std_msgs
   turtlesim
   gazebo_msgs
+  nav_msgs
 )
 
 ################################################
@@ -113,7 +115,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES TurtleBot
-  CATKIN_DEPENDS message_runtime geometry_msgs rospy std_msgs turtlesim gazebo_msgs
+  CATKIN_DEPENDS message_runtime geometry_msgs rospy std_msgs turtlesim gazebo_msgs nav_msgs
 #  DEPENDS system_lib
 )
 
