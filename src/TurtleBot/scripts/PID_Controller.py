@@ -169,28 +169,58 @@ def activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, r, db
     move_cmd = Twist()
     pub.publish(move_cmd)
 
+def is_robot_stopped():
 
 
-def move_and_turn_to_target(pos_node, ref_node, pub, pos_err_node, ang_err_node, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
-    # move and turn to target
-    rospy.loginfo('Moving And Turning To Target')
-    while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
+def turn_to_target(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, ang_gains, ang_err, iterations):
+    rospy.loginfo('Turning To Target')
+    stop_time_started = False
+    move_complete = False
+    while not move_complete and not rospy.is_shutdown():
+        while not util.check_body_angle(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
+            # turn to face target
+            
+            move_cmd = Twist() #reinitalize move_cmd
+            
+            _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+            ang_err.record_err(err_ang)
+            err_msg = ang_err.make_err_val_msg()
+            move_cmd.angular.z = pid(ang_gains,ang_err)
+
+            # if is_debug_iter(dbg,debug_interval,iterations):
+            #     debug_info("Calc_err",err_ang=err_ang,err_pos=err_pos)
+            #     debug_info("Ang_gains:",Kp=ang_gains.Kp,Ki=ang_gains.Ki,Kd=ang_gains.Kd)
+            #     debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_err,prev_err=ang_err.prev_err,prev_int_err=ang_err.prev_int_err)
+            
+            pub_err.publish(err_msg)
+            pub.publish(move_cmd)
+            iterations += 1
+            r.sleep()
+        while not is_robot_stopped() and not rospy.is_shutdown():
+            _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+            ang_err.record_err(err_ang)
+            err_msg = ang_err.make_err_val_msg()
+            pub.publish(Twist())a
+            r.sleep()
+        if util.check_body_angle(format_model_state(pos_node),format_target(ref_node)):
+            move_complete = True
+
+def move_to_target(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, pos_gains, pos_err, iterations):
+    rospy.loginfo('Moving To Target')
+    while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown(): 
+        # move to target
         
         move_cmd = Twist()
-        err_pos, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
-        ang_err.record_err(err_ang)
-        pos_err.record_err(err_pos) 
-        pos_err_msg = pos_err.make_err_val_msg()
-        ang_err_msg = ang_err.make_err_val_msg()
-        move_cmd.angular.z = pid(ang_gains,ang_err)
+        err_pos,_ = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+        pos_err.record_err(err_pos)
+        err_msg = pos_err.make_err_val_msg()
         move_cmd.linear.x = pid(pos_gains, pos_err)
-        
+
         # if is_debug_iter(dbg,debug_interval,iterations):
+        #     debug_info("Pos_gains:",Kp=pos_gains.Kp,Ki=pos_gains.Ki,Kd=pos_gains.Kd)
         #     debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_err,prev_err=pos_err.prev_err,prev_int_err=pos_err.prev_int_err)
-        #     debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_err,prev_err=ang_err.prev_err,prev_int_err=ang_err.prev_int_err)
         
-        pos_err_node.publish(pos_err_msg)
-        ang_err_node.publish(ang_err_msg)
+        pub_err.publish(err_msg)
         pub.publish(move_cmd)
         iterations += 1
         r.sleep()
@@ -220,45 +250,26 @@ def turn_to_ref_theta(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, 
     pub.publish(Twist())
     r.sleep()
 
-def turn_to_target(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, ang_gains, ang_err, iterations):
-    rospy.loginfo('Turning To Target')
-    while not util.check_body_angle(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
-        # turn to face target
-        
-        move_cmd = Twist() #reinitalize move_cmd
-        _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
-        ang_err.record_err(err_ang)
-        err_msg = ang_err.make_err_val_msg()
-        move_cmd.angular.z = pid(ang_gains,ang_err)
-
-        # if is_debug_iter(dbg,debug_interval,iterations):
-        #     debug_info("Calc_err",err_ang=err_ang,err_pos=err_pos)
-        #     debug_info("Ang_gains:",Kp=ang_gains.Kp,Ki=ang_gains.Ki,Kd=ang_gains.Kd)
-        #     debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_err,prev_err=ang_err.prev_err,prev_int_err=ang_err.prev_int_err)
-        
-        pub_err.publish(err_msg)
-        pub.publish(move_cmd)
-        iterations += 1
-        r.sleep()
-    pub.publish(Twist())
-    r.sleep()
-
-def move_to_target(pos_node, ref_node, pub, pub_err, r, dbg, debug_interval, pos_gains, pos_err, iterations):
-    rospy.loginfo('Moving To Target')
-    while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown(): 
-        # move to target
+def move_and_turn_to_target(pos_node, ref_node, pub, pos_err_node, ang_err_node, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
+    # move and turn to target
+    rospy.loginfo('Moving And Turning To Target')
+    while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
         
         move_cmd = Twist()
-        err_pos,_ = util.calc_error(format_model_state(pos_node),format_target(ref_node))
-        pos_err.record_err(err_pos)
-        err_msg = pos_err.make_err_val_msg()
+        err_pos, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+        ang_err.record_err(err_ang)
+        pos_err.record_err(err_pos) 
+        pos_err_msg = pos_err.make_err_val_msg()
+        ang_err_msg = ang_err.make_err_val_msg()
+        move_cmd.angular.z = pid(ang_gains,ang_err)
         move_cmd.linear.x = pid(pos_gains, pos_err)
-
-        # if is_debug_iter(dbg,debug_interval,iterations):
-        #     debug_info("Pos_gains:",Kp=pos_gains.Kp,Ki=pos_gains.Ki,Kd=pos_gains.Kd)
-        #     debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_err,prev_err=pos_err.prev_err,prev_int_err=pos_err.prev_int_err)
         
-        pub_err.publish(err_msg)
+        # if is_debug_iter(dbg,debug_interval,iterations):
+        #     debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_err,prev_err=pos_err.prev_err,prev_int_err=pos_err.prev_int_err)
+        #     debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_err,prev_err=ang_err.prev_err,prev_int_err=ang_err.prev_int_err)
+        
+        pos_err_node.publish(pos_err_msg)
+        ang_err_node.publish(ang_err_msg)
         pub.publish(move_cmd)
         iterations += 1
         r.sleep()
