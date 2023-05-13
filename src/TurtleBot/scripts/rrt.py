@@ -22,13 +22,14 @@ class SubscriberNode_Map(pid.SubscriberNode):
 
   def callback(self, data):
     super(SubscriberNode_Map,self).callback(data)
-    self.current_map = self.create_2D_map(data)
+    rospy.loginfo('callback occurs')
+    self.current_map = self.convert_map_2D(data)
 
   def convert_map_2D(self,data):
     '''This function converts the 1D map data into 2D array'''
     self.height = data.info.height
     self.width = data.info.width
-    map_out = np.zeros(self.height,self.width)
+    map_out = np.zeros((self.height,self.width))
     current_row = 0
     current_col = 0
     for cell in data.data:
@@ -36,7 +37,8 @@ class SubscriberNode_Map(pid.SubscriberNode):
         current_col = 0
         current_row += 1
       map_out[current_row,current_col] = cell
-      current_col += 1   
+      current_col += 1  
+    return map_out 
 
 
 def rapidlyExploringRandomTree(img, start, goal, seed=None):
