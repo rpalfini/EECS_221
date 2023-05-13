@@ -22,7 +22,6 @@ class SubscriberNode_Map(pid.SubscriberNode):
 
   def callback(self, data):
     super(SubscriberNode_Map,self).callback(data)
-    rospy.loginfo('callback occurs')
     self.current_map = self.convert_map_2D(data)
 
   def convert_map_2D(self,data):
@@ -242,18 +241,20 @@ def main():
   is_first_point_rec = False
   # flag to make sure RRT isn't activated until a start goal is received
   while not is_first_point_rec and not rospy.is_shutdown():
-    if not start_goal_node.data == []:
+    if not start_goal_node.data.data == []:
       is_first_point_rec = True
-      cur_start_goal = start_goal_node.data
+      cur_start_goal = start_goal_node.data.data
 
   while not rospy.is_shutdown():
     if not is_traj_computed:
       start_goal_map = get_index_from_coordinates(cur_start_goal,map_node)
-      path,graph = find_path_RRT(cv2.cvtColor(map_img(map_node.current_map),cv2.COLOR_GRAY2BGR)[::-1],start_goal_map[0:2],start_goal_map[2:4])
+      # path,graph = find_path_RRT(cv2.cvtColor(map_img(map_node.current_map),cv2.COLOR_GRAY2BGR)[::-1],start_goal_map[0:2],start_goal_map[2:4])
+      path,graph = find_path_RRT(start_goal_map[0:2],start_goal_map[2:4],map_node.current_map)
       traj_pub.publish(path)
       is_traj_computed = True
     else:
       if not cur_start_goal == start_goal_node.data:
+        cur_start_goal = start_goal_node.data.data
         is_traj_computed = False
       
 

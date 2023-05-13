@@ -131,7 +131,7 @@ def request_number(var_name,is_bounds=True,bounds=(1,9)):
     is_valid = False
     if is_bounds:
         while not is_valid:
-            val = click.prompt('Enter Target %s coordinate between %.2f-%.2f or q to exit' % (var_name,min_in,max_in))
+            val = click.prompt('Enter %s coordinate between %.2f-%.2f or q to exit' % (var_name,min_in,max_in))
             try:
                 val = float(val)
             except:
@@ -149,7 +149,7 @@ def request_number(var_name,is_bounds=True,bounds=(1,9)):
                 rospy.loginfo('Enter number between %.2f-%.2f' % (min_in,max_in))
     else:
         while not is_valid:
-            val = click.prompt('Enter Target %s coordinate' % var_name)
+            val = click.prompt('Enter %s coordinate' % var_name)
             try:
                 out_val = float(val)
                 is_valid = True
