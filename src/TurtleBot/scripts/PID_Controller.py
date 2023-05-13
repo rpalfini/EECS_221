@@ -179,7 +179,7 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose, r, dbg, debug
             err_msg = ang_err.make_err_val_msg()
             move_cmd.angular.z = pid(ang_gains,ang_err)
 
-            pub_rec_pose.publish(make_rec_pose_msg(pos_node))
+            pub_rec_pose.publish(make_rec_pose_msg(pos_node,err_ang))
             pub_err.publish(err_msg)
             pub.publish(move_cmd)
             iterations += 1
@@ -211,7 +211,7 @@ def move_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose, r, dbg, debug
             # move to target
             
             move_cmd = Twist()
-            err_pos,_ = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+            err_pos,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
             pos_err.record_err(err_pos)
             err_msg = pos_err.make_err_val_msg()
             move_cmd.linear.x = pid(pos_gains, pos_err)
@@ -220,7 +220,7 @@ def move_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose, r, dbg, debug
             #     debug_info("Pos_gains:",Kp=pos_gains.Kp,Ki=pos_gains.Ki,Kd=pos_gains.Kd)
             #     debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_err,prev_err=pos_err.prev_err,prev_int_err=pos_err.prev_int_err)
             
-            pub_rec_pose.publish(make_rec_pose_msg(pos_node))
+            pub_rec_pose.publish(make_rec_pose_msg(pos_node),err_ang)
             pub_err.publish(err_msg)
             pub.publish(move_cmd)
             iterations += 1
@@ -294,12 +294,13 @@ def is_final_angle(cur_state,ref_theta):
     return result
 
 ## Utility Functions
-def make_rec_pose_msg(pos_node):
+def make_rec_pose_msg(pos_node,ang_err):
     msg_out = cur_pose()
     msg_out.x = pos_node.data.pose[1].position.x
     msg_out.y = pos_node.data.pose[1].position.y
     formatted_node = format_model_state(pos_node)
     msg_out.theta = formatted_node['theta']
+    msg_out.dir_theta = ang_err + formatted_node['theta']
     return msg_out
 
 def is_msg_same(msg1,msg2):
