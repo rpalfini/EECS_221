@@ -40,7 +40,6 @@ class SubscriberNode_Map(pid.SubscriberNode):
       current_col += 1  
     return map_out 
 
-
 def rapidlyExploringRandomTree(img, start, goal, seed=None):
   hundreds = 100
   random.seed(seed)
@@ -208,15 +207,55 @@ def map_img(arr):
     im = np.array(disp_map, dtype = np.uint8)
     return im[::-1]
 
+def get_index_from_coordinates(start_goal_data,map_node):
+  def convert_to_map_coord(real,origin,resolution):
+    return origin + int(round(real/resolution))
+  
+  # start_goal_data should be Float64MultiArray of length 4
+  if not len(start_goal_data) == 4:
+    raise Exception('expecting length of data to be 4 but got %d' % (len(start_goal_data)))
+  start_real = start_goal_data[0:2]
+  goal_real = start_goal_data[2:4]
+  x_origin = map_node.data.info.origin.position.x
+  y_origin = map_node.data.info.origin.position.y
+  resolution = map_node.data.info.resolution
+
+  x_start_index = convert_to_map_coord(start_real[0],x_origin,resolution)
+  y_start_index = convert_to_map_coord(start_real[1],y_origin,resolution)
+  x_goal_index = convert_to_map_coord(goal_real[0],x_origin,resolution)
+  y_goal_index = convert_to_map_coord(goal_real[1],y_origin,resolution)
+
+  start_goal_index = (x_start_index,y_start_index,x_goal_index,y_goal_index)
+  return start_goal_index
+
 def main():
   rospy.init_node('RRT_node')
   # set up subscriptions
   map_node = SubscriberNode_Map('/map',OccupancyGrid,OccupancyGrid())
   start_goal_node = pid.SubscriberNode('/start_goal',Float64MultiArray,Float64MultiArray())
 
+  # set up publishers
+  traj_pub = rospy.Publisher('/trajectory',Float64MultiArray,queue_size=5)
 
+  # flags
+  is_traj_computed = False
+  is_first_point_rec = False
+  # flag to make sure RRT isn't activated until a start goal is received
+  while not is_first_point_rec and not rospy.is_shutdown():
+    if not start_goal_node.data == []:
+      is_first_point_rec = True
+      cur_start_goal = start_goal_node.data
 
-
+  while not rospy.is_shutdown():
+    if not is_traj_computed:
+      start_goal_map = get_index_from_coordinates(cur_start_goal,map_node)
+      path,graph = find_path_RRT(cv2.cvtColor(map_img(map_node.current_map),cv2.COLOR_GRAY2BGR)[::-1],start_goal_map[0:2],start_goal_map[2:4])
+      traj_pub.publish(path)
+      is_traj_computed = True
+    else:
+      if not cur_start_goal == start_goal_node.data:
+        is_traj_computed = False
+      
 
 if __name__ == "__main__":
   main()

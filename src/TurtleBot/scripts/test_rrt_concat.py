@@ -16,4 +16,7 @@ if __name__ == "__main__":
             print('map not updated yet')
         else:
             print(map_node.current_map.shape)
+            print('axis1: '+str(len(map_node.current_map[0])))
+            print('axis2: '+str(len(map_node.current_map)))
+
         print(len(map_node.data.data))
