@@ -10,6 +10,7 @@ import PID_Controller as pid
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Float64MultiArray
 
+dbg = True
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
 MAX_NUM_VERT = 1500 # Maximum number of vertex in the graph
 STEP_DISTANCE = 20 # Maximum distance between two vertex
@@ -40,6 +41,7 @@ class SubscriberNode_Map(pid.SubscriberNode):
     return map_out 
 
 def rapidlyExploringRandomTree(img, start, goal, seed=None):
+  rospy.loginfo('entered rapidlyExploringRandomTree')
   hundreds = 100
   random.seed(seed)
   points = []
@@ -58,6 +60,8 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
 
   i = 0
   while (goal not in points) and (len(points) < MAX_NUM_VERT):
+    if dbg:
+      rospy.loginfo('entered goal not found loop')
     # if (i % 100) == 0:
     #   print i, 'points randomly generated'
 
@@ -83,13 +87,19 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
     points.extend(newPoints)
 
     i = i + 1
-
+    if dbg:
+      # pid.debug_info('length of points',p=len(points))
+      rospy.loginfo('length of points %d' % (len(points)))
+    
     if len(points) >= MIN_NUM_VERT:
+      
       if not phaseTwo:
+        rospy.loginfo('started phase 2')
         print 'Phase Two'
       phaseTwo = True
 
     if phaseTwo:
+      rospy.loginfo('entered phase two if')
       nearest = findNearestPoint(points, goal)
       newPoints = connectPoints(goal, nearest, img)
       addToGraph(graph, newPoints, goal)
@@ -208,7 +218,9 @@ def map_img(arr):
 
 def get_index_from_coordinates(start_goal_data,map_node):
   def convert_to_map_coord(real,origin,resolution):
-    return origin + int(round(real/resolution))
+    # return origin + int(round(real/resolution)) #This looks incorrect...
+    point = abs(real-origin)
+    return int(round(point/resolution))
   
   # start_goal_data should be Float64MultiArray of length 4
   if not len(start_goal_data) == 4:
@@ -239,23 +251,37 @@ def main():
   # flags
   is_traj_computed = False
   is_first_point_rec = False
+  is_map_loaded = False
   # flag to make sure RRT isn't activated until a start goal is received
   while not is_first_point_rec and not rospy.is_shutdown():
     if not start_goal_node.data.data == []:
+      rospy.loginfo('Waiting for first start_goal')
       is_first_point_rec = True
       cur_start_goal = start_goal_node.data.data
+  rospy.loginfo('first start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
+  
+  while not is_map_loaded and not rospy.is_shutdown():
+    rospy.loginfo('Waiting for map load')
+    if not map_node.current_map is None:
+      is_map_loaded = True
 
   while not rospy.is_shutdown():
     if not is_traj_computed:
-      start_goal_map = get_index_from_coordinates(cur_start_goal,map_node)
+      rospy.loginfo('searching for trajectory')
+      start_goal_index = get_index_from_coordinates(cur_start_goal,map_node)
+      print(start_goal_index)
       # path,graph = find_path_RRT(cv2.cvtColor(map_img(map_node.current_map),cv2.COLOR_GRAY2BGR)[::-1],start_goal_map[0:2],start_goal_map[2:4])
-      path,graph = find_path_RRT(start_goal_map[0:2],start_goal_map[2:4],map_node.current_map)
+      start = [start_goal_index[0],start_goal_index[1]]
+      goal = [start_goal_index[2],start_goal_index[3]]
+      path,graph = find_path_RRT(start,goal,map_node.current_map)
       traj_pub.publish(path)
       is_traj_computed = True
-    else:
-      if not cur_start_goal == start_goal_node.data:
-        cur_start_goal = start_goal_node.data.data
-        is_traj_computed = False
+      rospy.loginfo('trajectory found and outputted')
+
+    if not cur_start_goal == start_goal_node.data:
+      rospy.loginfo('new start_goal received')
+      cur_start_goal = start_goal_node.data.data
+      is_traj_computed = False
       
 
 if __name__ == "__main__":
