@@ -114,7 +114,7 @@ def check_body_angle(pose,target):
     _,err_ang = calc_error(pose,target)
     if abs(err_ang) <= math.pi/180:
         is_correct_angle = True
-        rospy.loginfo('Facing target with orientation %.2f' % pose['theta']) 
+        # rospy.loginfo('Facing target with orientation %.2f' % pose['theta']) 
     else:
         is_correct_angle = False
     return is_correct_angle

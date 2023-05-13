@@ -29,18 +29,6 @@ class SubscriberNodeUpdateGains(SubscriberNode):
         super(SubscriberNodeUpdateGains, self).callback(data)
         self.gains_obj.update_gains(data)
 
-# class SubscriberNodeUpdatePose(SubscriberNode):
-#     def __init__(self, topic, msg):
-#         super().__init__(topic, msg)
-
-#     def callback(self, data):
-#         super().callback(data)
-#         self.gains_obj.update_pose_info(data)
-
-    # def update_pose_info(data):
-    #     # used for Gazebo/model_State input
-    #     return None
-
 class PID_gains(object):
     def __init__(self,Kp,Ki,Kd):
         self.Kp = Kp
@@ -129,7 +117,7 @@ def main():
     debug_interval = 20
     
     pos_gains = PID_gains(Kp=1.5,Ki=0,Kd=0)
-    ang_gains = PID_gains(Kp=2,Ki=0,Kd=0)
+    ang_gains = PID_gains(Kp=2,Ki=0.1,Kd=0.1)
     pos_err = err_struct()
     ang_err = err_struct(error_max=10)
     
@@ -177,10 +165,13 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose, r, dbg, debug
     rospy.loginfo('Turning To Target')
     stop_time_started = False
     move_complete = False
+    is_first = True
     while not move_complete and not rospy.is_shutdown():
         while not util.check_body_angle(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
             # turn to face target
-            
+            if is_first:
+                rospy.loginfo('entered turn_contorller')
+                is_first = False
             move_cmd = Twist() #reinitalize move_cmd
             
             _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
@@ -188,27 +179,28 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose, r, dbg, debug
             err_msg = ang_err.make_err_val_msg()
             move_cmd.angular.z = pid(ang_gains,ang_err)
 
-            # if is_debug_iter(dbg,debug_interval,iterations):
-            #     debug_info("Calc_err",err_ang=err_ang,err_pos=err_pos)
-            #     debug_info("Ang_gains:",Kp=ang_gains.Kp,Ki=ang_gains.Ki,Kd=ang_gains.Kd)
-            #     debug_info("Angular:",err=ang_err.err,int_err=ang_err.int_err,d_error=ang_err.deriv_err,prev_err=ang_err.prev_err,prev_int_err=ang_err.prev_int_err)
-            
             pub_rec_pose.publish(make_rec_pose_msg(pos_node))
             pub_err.publish(err_msg)
             pub.publish(move_cmd)
             iterations += 1
             r.sleep()
+            
         # while not is_robot_stopped() and not rospy.is_shutdown():
         #     _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         #     ang_err.record_err(err_ang)
         #     err_msg = ang_err.make_err_val_msg()
         #     pub.publish(Twist())
         #     r.sleep()
+        debug_info('leaving control loop',check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
         pub.publish(Twist())
         r.sleep()
-        rospy.sleep(2)
+        # rospy.sleep(3)
         if util.check_body_angle(format_model_state(pos_node),format_target(ref_node)):
             move_complete = True
+            debug_info('turn to target final check',move_complete=move_complete,check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
+        else:
+            debug_info('turn to target final check',move_complete=move_complete,check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
+        is_first = True
 
 def move_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose, r, dbg, debug_interval, pos_gains, pos_err, iterations):
     rospy.loginfo('Moving To Target')

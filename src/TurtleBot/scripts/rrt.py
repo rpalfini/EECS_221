@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 import rospy
 import numpy as np
@@ -7,11 +7,37 @@ from scipy.misc import imread
 import random, sys, math, os.path
 import cv2
 import PID_Controller as pid
+from nav_msgs.msg import OccupancyGrid
+from std_msgs.msg import Float64MultiArray
 
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
 MAX_NUM_VERT = 1500 # Maximum number of vertex in the graph
 STEP_DISTANCE = 20 # Maximum distance between two vertex
 SEED = None # For random numbers
+
+class SubscriberNode_Map(pid.SubscriberNode):
+  def __init__(self, topic, msg, msg_object):
+    super(SubscriberNode_Map,self).__init__(topic, msg, msg_object)
+    self.current_map = None
+
+  def callback(self, data):
+    super(SubscriberNode_Map,self).callback(data)
+    self.current_map = self.create_2D_map(data)
+
+  def convert_map_2D(self,data):
+    '''This function converts the 1D map data into 2D array'''
+    self.height = data.info.height
+    self.width = data.info.width
+    map_out = np.zeros(self.height,self.width)
+    current_row = 0
+    current_col = 0
+    for cell in data.data:
+      if current_col == self.width:
+        current_col = 0
+        current_row += 1
+      map_out[current_row,current_col] = cell
+      current_col += 1   
+
 
 def rapidlyExploringRandomTree(img, start, goal, seed=None):
   hundreds = 100
@@ -182,6 +208,11 @@ def map_img(arr):
 
 def main():
   rospy.init_node('RRT_node')
+  # set up subscriptions
+  map_node = SubscriberNode_Map('/map',OccupancyGrid,OccupancyGrid())
+  start_goal_node = pid.SubscriberNode('/start_goal',Float64MultiArray,Float64MultiArray())
+
+
 
 
 
