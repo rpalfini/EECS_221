@@ -3,6 +3,7 @@
 import rospy
 import numpy as np
 from matplotlib import cm
+import matplotlib.pyplot as plt
 from scipy.misc import imread
 import random, sys, math, os.path
 import cv2
@@ -12,7 +13,7 @@ from std_msgs.msg import Float64MultiArray
 
 dbg = False
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
-MAX_NUM_VERT = 1500 # Maximum number of vertex in the graph
+MAX_NUM_VERT = 12000 # Maximum number of vertex in the graph
 STEP_DISTANCE = 20 # Maximum distance between two vertex
 SEED = None # For random numbers
 
@@ -94,31 +95,40 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
     if len(points) >= MIN_NUM_VERT:
       
       if not phaseTwo:
-        rospy.loginfo('started phase 2')
         print 'Phase Two'
       phaseTwo = True
 
     if phaseTwo:
-      rospy.loginfo('entered phase two if')
+      if dbg:
+        rospy.loginfo('entered phase two if')
       nearest = findNearestPoint(points, goal)
       newPoints = connectPoints(goal, nearest, img)
       addToGraph(graph, newPoints, goal)
       newPoints.pop(0)
       points.extend(newPoints)
 
-
   if goal in points:
-    # print 'Goal found, total vertex in graph:', len(points), 'total random points generated:', i
+    print 'Goal found, total vertex in graph:', len(points), 'total random points generated:', i
+    is_path_None = True
+    # while is_path_None:
+    print 'try and find path again'
     path = searchPath(graph, start, [start])
-    # print 'Showing resulting map'
-    # print 'Final path:', path
-    # print 'The final path is made from:', len(path),'connected points'
+      
+      # if not path is None:
+      #   is_path_None = False
+    try:
+      print 'Showing resulting map'
+      print 'Final path:', path
+      # print 'The final path is made from:', len(path),'connected points'
+    except:
+      print 'Path is None even though goal was found'
+    # plot_traj_found()
   else:
     path = None
     print 'Reached maximum number of vertex and goal was not found'
     print 'Total vertex in graph:', len(points), 'total random points generated:', i
     print 'Showing resulting map'
-
+    # plot_traj_found()
 
   return path,graph
 
@@ -128,6 +138,10 @@ def searchPath(graph, point, path):
       p = i
 
   if p[0] == graph[-1][0]:
+    pid.debug_info('searchPath',len_point=len(point),len_graph=len(graph))
+    pid.debug_info('search_path_path',len_path=len(path),path=path)
+    pid.debug_info('path type',ptype = type(path))
+    rospy.loginfo('entered_early_return')
     return path
 
   for link in p[1]:
@@ -135,6 +149,8 @@ def searchPath(graph, point, path):
     finalPath = searchPath(graph, link, path)
 
     if finalPath != None:
+    # if not finalPath is None:
+      rospy.loginfo('final path returned')
       return finalPath
     else:
       path.pop()
@@ -202,8 +218,8 @@ def findNearestPoint(points, point):
 
 def find_path_RRT(start,goal,my_map):
   my_map = cv2.cvtColor(map_img(my_map), cv2.COLOR_GRAY2BGR)[::-1]
-  path = rapidlyExploringRandomTree(my_map, start, goal, seed=None)
-  return path
+  path,graph = rapidlyExploringRandomTree(my_map, start, goal, seed=None)
+  return path,graph
 
 def map_img(arr):
     disp_map = np.ones((384,384))*255
@@ -262,7 +278,7 @@ def main():
       is_first_point_rec = True
       cur_start_goal = start_goal_node.data.data
   rospy.loginfo('first start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
-  
+  # make sure map is loaded
   while not is_map_loaded and not rospy.is_shutdown():
     rospy.loginfo('Waiting for map load')
     if not map_node.current_map is None:
@@ -272,20 +288,37 @@ def main():
     if not is_traj_computed:
       rospy.loginfo('searching for trajectory')
       start_goal_index = get_index_from_coordinates(cur_start_goal,map_node)
-      print(start_goal_index)
+      rospy.loginfo(start_goal_index)
       # path,graph = find_path_RRT(cv2.cvtColor(map_img(map_node.current_map),cv2.COLOR_GRAY2BGR)[::-1],start_goal_map[0:2],start_goal_map[2:4])
       start = [start_goal_index[0],start_goal_index[1]]
       goal = [start_goal_index[2],start_goal_index[3]]
       path,graph = find_path_RRT(start,goal,map_node.current_map)
-      traj_pub.publish(path)
+      pid.debug_info('rrt',path_type=type(path),graph_type=type(graph))
+      pid.debug_info('rrt',len_path=len(path))
+      print('path ' + str(len(path)))
+      rospy.loginfo('showing path')
+      for item in path:
+        print(item)
+      path_msg = create_path_msg(path)
+      traj_pub.publish(path_msg)
       is_traj_computed = True
       rospy.loginfo('trajectory found and outputted')
 
-    if not cur_start_goal == start_goal_node.data:
-      rospy.loginfo('new start_goal received')
+    if not cur_start_goal == start_goal_node.data.data:
+      rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
       cur_start_goal = start_goal_node.data.data
       is_traj_computed = False
-      
+
+def create_path_msg(path):
+  path_msg = Float64MultiArray()
+  path_msg.data = [coord for point in path for coord in point]
+  return path_msg
+
+def plot_traj_found():
+  img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+  plt.imshow(img,cmap=cm.gray)
+  plt.axis('off')
+  plt.show()
 
 if __name__ == "__main__":
   main()
