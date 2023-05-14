@@ -106,6 +106,9 @@ class err_struct(object):
 def pid(gains,err_struct):
     return gains.Kp*err_struct.err + gains.Ki*err_struct.int_err + gains.Kd*err_struct.deriv_err
 
+# def publish_nodes(pos_node, pub, pub_err, pub_rec_pose, r, move_cmd, err_ang, err_msg):
+    
+
 def main():
     rospy.init_node('PID_Controller')
     # test_mode specifies if gains are hard coded or received from topic
@@ -128,9 +131,9 @@ def main():
     debug_interval = 20
     
     pos_gains = PID_gains(Kp=1.5,Ki=0.6,Kd=0.3)
-    ang_gains = PID_gains(Kp=2,Ki=0.5,Kd=0.5)
+    ang_gains = PID_gains(Kp=1,Ki=0,Kd=0)
     pos_err = err_struct()
-    ang_err = err_struct(error_max=100)
+    ang_err = err_struct(error_max=3.14)
     
     if test_mode:
         pos_gains_node=SubscriberNodeUpdateGains(topic='/pos_gains',msg=PID_Gains,msg_object=PID_Gains(),gains_obj=pos_gains)
@@ -139,8 +142,15 @@ def main():
     iterations=0 # used for debugging
 
     while not rospy.is_shutdown():
-        if not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)):
-            activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+        if ref_node.data.mode == 2:
+            is_body_angle = util.check_body_angle(format_model_state(pos_node),format_target(ref_node))
+            if not is_body_angle:
+                activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+        else:
+            if not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)):
+                activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+
+        # publish_nodes(pos_node, pub, pub_err, pub_rec_pose, r, move_cmd, err_ang, err_msg)
 
 ## Controller Functions
 def activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose, pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations):
@@ -165,13 +175,15 @@ def activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_r
                 turn_to_ref_theta(pos_node, ref_node, pub, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, ang_gains, ang_err, iterations)
                 is_final_pose = True
                 iterations = 0
+
+            elif ref_node.data.mode == 2:
+                #this is for testing individual functions
+                rospy.loginfo('using mode 2')
+                turn_to_target(pos_node, ref_node, pub, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, ang_gains, ang_err, iterations)
+
     rospy.loginfo('Reached Final Pose')
     move_cmd = Twist()
     pub.publish(move_cmd)
-
-# def is_robot_stopped(pos_node):
-#     pos_node.data.
-
 
 def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, ang_gains, ang_err, iterations):
     rospy.loginfo('Turning To Target')
@@ -194,8 +206,9 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose
             pub_rec_pose.publish(make_rec_pose_msg(pos_node,err_ang))
             pub_err.publish(err_msg)
             pub.publish(move_cmd)
-            iterations += 1
             r.sleep()
+        
+            iterations += 1
             
         # while not is_robot_stopped() and not rospy.is_shutdown():
         #     _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
@@ -295,10 +308,10 @@ def is_final_angle(cur_state,ref_theta):
     # checks if body is at final reference angle
     
     err_ang = ref_theta - cur_state['theta']
-    debug_info('is_final_angle',ref_theta=ref_theta,cur_theta=cur_state['theta'])
+    # debug_info('is_final_angle',ref_theta=ref_theta,cur_theta=cur_state['theta'])
     if abs(err_ang) < math.pi/180:
         result = True
-        rospy.loginfo('facing final angle')
+        # rospy.loginfo('facing final angle')
     else:
         result = False
     return result
@@ -338,12 +351,6 @@ def format_model_state(node):
     ref_dict = {'pose': pose_val_out, 'theta': euler_angs[2]} # euler_angs[2] corresponds to the yaw
     return ref_dict
 
-# def format_model_state(data):
-#     # this expects node of type gazebo_msg/model_state
-#     euler_angs = quaternion_to_euler(data.pose.orientation)
-#     ref_dict = {'pose': data.pose.position, 'theta': euler_angs[2]} # euler_angs[2] corresponds to the yaw
-#     return ref_dict
-
 def quaternion_to_euler(orientation):
     # takes quaternion object and converts it euler angles
     quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
@@ -360,7 +367,7 @@ def debug_info(info,**kwargs):
     output_string = info + " "
     for key,value in kwargs.iteritems():
         output_string += str(key) + ": " + str(value) + ','
-    rospy.loginfo(output_string[:-2])
+    rospy.loginfo(output_string.rstrip(','))
 
 if __name__ == "__main__":
     main()

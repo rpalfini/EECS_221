@@ -14,7 +14,7 @@ def request_and_create():
     return create_ref_msg(mode,ref_pose)
 
 def request_mode():
-    return util.request_number('mode',bounds=(0,1))
+    return util.request_number('mode',bounds=(0,2))
 
 def request_ref_point():
     x = util.request_number('x',is_bounds=False)
@@ -54,13 +54,13 @@ def request_start_goal_msg():
     return msg_out
 
 # For use in problem 3
-def find_angle_next_point():
+def find_angle_next_point(cur_location,next_point):
     # finds the angle to next point and adds to ref msg
-    return None
+    return 1
 
 def make_start_goal_msg():
     #makes start_goal msg that gets sent to RRT
-    return None         
+    return Float64MultiArray() 
 
 
 def is_new_msg(data_node,prev_traj):
@@ -85,6 +85,7 @@ def main():
     mode = 0
     msg_count = 1
     r = rospy.Rate(10)
+    cur_location = 0
     
     if testing_problem == 1: #testing PID Controller
         pos_node = pid.SubscriberNode(topic='/gazebo/model_states',msg=pid.ModelStates,msg_object=pid.ModelStates())
@@ -144,13 +145,13 @@ def main():
             for ii in range(0,len(traj)-1,2):
                 next_point = (traj[ii],traj[ii+1])
                 next_angle = find_angle_next_point(cur_location,next_point)
-                ref_pose = create_ref_msg(mode=mode,ref_tuple=(*next_point,next_angle))
-                rospy.loginfo('sending point number %d at location at (%.2f,%.2f) with angle (%.2f) ' % (msg_count,*next_point,next_angle))
+                ref_pose = create_ref_msg(mode=mode,ref_tuple=(next_point[0],next_point[1],next_angle))
+                rospy.loginfo('sending point number %d at location at (%.2f,%.2f) with angle (%.2f) ' % (msg_count,next_point[0],next_point[1],next_angle))
                 msg_count += 1
                 while not is_goal_state(pos_node,ref_pose):
                     
                     pub_ref_pose.publish(ref_pose)
-                rospy.loginfo('robot arrived at location (%.2f,%.2f) with angle (%.2f,%.2f)' % (*next_point,next_angle))
+                rospy.loginfo('robot arrived at location (%.2f,%.2f) with angle (%.2f,%.2f)' % (next_point[0],next_point[1],next_angle))
             rospy.loginfo('robot arrived at goal')
             
 
