@@ -134,6 +134,7 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
 
 def searchPath(graph, point, path):
   for i in graph:
+    pid.debug_info('search_path',)
     if point == i[0]:
       p = i
 
