@@ -7,7 +7,7 @@ import PID_Controller as pid
 from std_msgs.msg import Float64MultiArray
 from gazebo_msgs.msg import ModelStates
 
-## for testing mode 1
+## for testing problem 1
 def request_and_create():
     mode = request_mode()
     ref_pose = request_ref_point()
@@ -43,7 +43,7 @@ def is_goal_state(pos_node,ref_pose):
     else:
         return False
     
-# For testing mode 2
+# For testing problem 2
 def request_start_goal_msg():
     x_start = util.request_number('x_start',is_bounds=False)
     y_start = util.request_number('y_start',is_bounds=False)
@@ -53,9 +53,30 @@ def request_start_goal_msg():
     msg_out.data = [x_start,y_start,x_goal,y_goal]
     return msg_out
 
+# For use in problem 3
+def find_angle_next_point():
+    # finds the angle to next point and adds to ref msg
+    return None
+
+def make_start_goal_msg():
+    #makes start_goal msg that gets sent to RRT
+    return None         
+
+
+def is_new_msg(data_node,prev_traj):
+    if not data_node.data.data == [] and not data_node.data.data == prev_traj:
+        return True
+    else:
+        return False
+    
+def log_rec_traj(traj_in_node):
+    #expect traj_vector to be 4 long list ordered x_start y_start x_goal y_goal
+    rospy.loginfo('Trajectory Received for start (%.2f,%.2f) and end (%.2f,%.2f)' % (traj_in_node.data[0],traj_in_node.data[1],traj_in_node.data[2],traj_in_node.data[3]))
+
+
 def main():
     rospy.init_node('Motion_Planner')
-    testing_problem = 2 # this variable used to specify which problem from miniproject 2 we are trying to test
+    testing_problem = 1 # this variable used to specify which problem from miniproject 2 we are trying to test
     is_user_input = True
     is_traj_processed = False
     prev_traj = []
@@ -121,36 +142,17 @@ def main():
                     is_traj_processed = True
             traj = traj_node.data.data
             for ii in range(0,len(traj)-1,2):
-                rospy.loginfo('sending point number %d' % (msg_count))
-                msg_count += 1
                 next_point = (traj[ii],traj[ii+1])
                 next_angle = find_angle_next_point(cur_location,next_point)
                 ref_pose = create_ref_msg(mode=mode,ref_tuple=(*next_point,next_angle))
-                while not at_next_location(pos_node,ref_pose):
-
+                rospy.loginfo('sending point number %d at location at (%.2f,%.2f) with angle (%.2f) ' % (msg_count,*next_point,next_angle))
+                msg_count += 1
+                while not is_goal_state(pos_node,ref_pose):
+                    
                     pub_ref_pose.publish(ref_pose)
-                rospy.loginfo('robot arrived at location')
+                rospy.loginfo('robot arrived at location (%.2f,%.2f) with angle (%.2f,%.2f)' % (*next_point,next_angle))
             rospy.loginfo('robot arrived at goal')
             
-def find_angle_next_point():
-    # finds the angle to next point and adds to ref msg
-    return None
-
-def make_start_goal_msg():
-    #makes start_goal msg that gets sent to RRT
-    return None         
-
-
-
-def is_new_msg(data_node,prev_traj):
-    if not data_node.data.data == [] and not data_node.data.data == prev_traj:
-        return True
-    else:
-        return False
-    
-def log_rec_traj(traj_in_node):
-    #expect traj_vector to be 4 long list ordered x_start y_start x_goal y_goal
-    rospy.loginfo('Trajectory Received for start (%.2f,%.2f) and end (%.2f,%.2f)' % (traj_in_node.data[0],traj_in_node.data[1],traj_in_node.data[2],traj_in_node.data[3]))
 
 
 if __name__ == "__main__":
