@@ -10,7 +10,7 @@ import PID_Controller as pid
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Float64MultiArray
 
-dbg = True
+dbg = False
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
 MAX_NUM_VERT = 1500 # Maximum number of vertex in the graph
 STEP_DISTANCE = 20 # Maximum distance between two vertex
@@ -238,6 +238,9 @@ def get_index_from_coordinates(start_goal_data,map_node):
 
   start_goal_index = (x_start_index,y_start_index,x_goal_index,y_goal_index)
   return start_goal_index
+
+def start_real_from_index(point_index,resolution,origin):
+  return point_index*resolution + origin
 
 def main():
   rospy.init_node('RRT_node')
