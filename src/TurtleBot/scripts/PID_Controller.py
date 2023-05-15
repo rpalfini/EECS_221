@@ -107,7 +107,9 @@ def pid(gains,err_struct):
     return gains.Kp*err_struct.err + gains.Ki*err_struct.int_err + gains.Kd*err_struct.deriv_err
 
 # def publish_nodes(pos_node, pub, pub_err, pub_rec_pose, r, move_cmd, err_ang, err_msg):
-    
+
+def is_robot_stopped(pos_node): 
+    pos_node.data.twist
 
 def main():
     rospy.init_node('PID_Controller')
@@ -131,7 +133,7 @@ def main():
     debug_interval = 20
     
     pos_gains = PID_gains(Kp=1.5,Ki=0.6,Kd=0.3)
-    ang_gains = PID_gains(Kp=1,Ki=0,Kd=0)
+    ang_gains = PID_gains(Kp=5,Ki=0,Kd=0)
     pos_err = err_struct()
     ang_err = err_struct(error_max=3.14)
     
@@ -143,9 +145,9 @@ def main():
 
     while not rospy.is_shutdown():
         if ref_node.data.mode == 2:
-            is_body_angle = util.check_body_angle(format_model_state(pos_node),format_target(ref_node))
-            if not is_body_angle:
-                activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+            # is_body_angle = util.check_body_angle(format_model_state(pos_node),format_target(ref_node))
+            # if not is_body_angle:
+            activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
         else:
             if not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)):
                 activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
@@ -216,17 +218,17 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose
         #     err_msg = ang_err.make_err_val_msg()
         #     pub.publish(Twist())
         #     r.sleep()
-        debug_info('leaving control loop',check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
-        pub.publish(Twist())
-        r.sleep()
-        rospy.sleep(2)
-        move_complete=True
+        # debug_info('leaving control loop',check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
+        # pub.publish(Twist())
+        # r.sleep()
+        # rospy.sleep(2)
+        # move_complete=True
         # if util.check_body_angle(format_model_state(pos_node),format_target(ref_node)):
         #     move_complete = True
         #     debug_info('turn to target final check',move_complete=move_complete,check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
         # else:
         #     debug_info('turn to target final check',move_complete=move_complete,check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
-        is_first = True
+        # is_first = True
 
 def move_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, pos_err, iterations):
     rospy.loginfo('Moving To Target')
@@ -242,10 +244,7 @@ def move_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose
             err_msg = pos_err.make_err_val_msg()
             move_cmd.linear.x = pid(pos_gains, pos_err)
 
-            # if is_debug_iter(dbg,debug_interval,iterations):
-            #     debug_info("Pos_gains:",Kp=pos_gains.Kp,Ki=pos_gains.Ki,Kd=pos_gains.Kd)
-            #     debug_info("Position:",err=pos_err.err,int_err=pos_err.int_err,d_error=pos_err.deriv_err,prev_err=pos_err.prev_err,prev_int_err=pos_err.prev_int_err)
-            
+    
             pub_rec_pose.publish(make_rec_pose_msg(pos_node),err_ang)
             pub_err.publish(err_msg)
             pub.publish(move_cmd)
@@ -317,13 +316,16 @@ def is_final_angle(cur_state,ref_theta):
     return result
 
 ## Utility Functions
-def make_rec_pose_msg(pos_node,ang_err):
+def make_rec_pose_msg(pos_node,ang_err,model=1):
     msg_out = cur_pose()
-    msg_out.x = pos_node.data.pose[1].position.x
-    msg_out.y = pos_node.data.pose[1].position.y
+    msg_out.x = pos_node.data.pose[model].position.x
+    msg_out.y = pos_node.data.pose[model].position.y
     formatted_node = format_model_state(pos_node)
     msg_out.theta = formatted_node['theta']
     msg_out.dir_theta = ang_err + formatted_node['theta']
+    msg_out.xdot = pos_node.data.twist[model].linear.x
+    msg_out.ydot = pos_node.data.twist[model].linear.y
+    msg_out.thetadot = pos_node.data.twist[model].angular.z
     return msg_out
 
 def is_msg_same(msg1,msg2):
