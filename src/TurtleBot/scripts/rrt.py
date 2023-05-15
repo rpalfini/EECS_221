@@ -52,7 +52,7 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
   # print 'Generating and conecting random points'
   occupied = True
   phaseTwo = False
-
+  dog = 2
   # Phase two values (points 5 step distances around the goal point)
   minX = max(goal[0] - 5 * STEP_DISTANCE, 0)
   maxX = min(goal[0] + 5 * STEP_DISTANCE, len(img[0]) - 1)
