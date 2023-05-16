@@ -105,7 +105,7 @@ def check_if_arrived(pose,target):
     err_pos,_ = calc_error(pose,target)
     if abs(err_pos) <= 0.05:
         is_arrived = True
-        rospy.loginfo('Arrived at target location: %.2f, %.2f with error %.3f' % (target[0],target[1],err_pos))
+        # rospy.loginfo('Arrived at target location: %.2f, %.2f with error %.3f' % (target[0],target[1],err_pos))
     else:
         is_arrived = False
     return is_arrived
