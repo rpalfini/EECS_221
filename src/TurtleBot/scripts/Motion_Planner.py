@@ -19,7 +19,7 @@ def request_mode():
 def request_ref_point():
     x = util.request_number('x',is_bounds=False)
     y = util.request_number('y',is_bounds=False)
-    theta = util.request_number('theta (radians)',is_bounds=False)
+    theta = util.request_number('theta (radians)',bounds=(-3.14,3.14))
     return (x,y,theta)
 
 def create_ref_msg(mode,ref_tuple):

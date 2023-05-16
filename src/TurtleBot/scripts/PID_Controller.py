@@ -94,13 +94,16 @@ class err_struct(object):
     def update_d_error(self,new_err):
         self.deriv_err = (new_err - self.prev_err)
 
-    def make_err_val_msg(self):
+    def make_err_val_msg(self,PID_gains):
         out_msg = err_vals()
         out_msg.err = self.err 
         out_msg.int_err = self.int_err
         out_msg.deriv_err = self.deriv_err
         out_msg.prev_err = self.prev_err
         out_msg.prev_int_err = self.prev_int_err
+        out_msg.Kp_sig = self.err*PID_gains.Kp
+        out_msg.Ki_sig = self.int_err*PID_gains.Ki
+        out_msg.Kd_sig = self.deriv_err*PID_gains.Kd
         return out_msg
 
 def pid(gains,err_struct):
@@ -132,8 +135,8 @@ def main():
     dbg = True
     debug_interval = 20
     
-    pos_gains = PID_gains(Kp=1.5,Ki=0.6,Kd=0.3)
-    ang_gains = PID_gains(Kp=5,Ki=0,Kd=0)
+    pos_gains = PID_gains(Kp=1.5,Ki=0.6,Kd=0.5)
+    ang_gains = PID_gains(Kp=1,Ki=0.1,Kd=0.2)
     pos_err = err_struct()
     ang_err = err_struct(error_max=3.14)
     
@@ -191,18 +194,14 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose
     rospy.loginfo('Turning To Target')
     stop_time_started = False
     move_complete = False
-    is_first = True
     while not move_complete and not rospy.is_shutdown():
         while not util.check_body_angle(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
             # turn to face target
-            if is_first:
-                rospy.loginfo('entered turn_contorller')
-                is_first = False
             move_cmd = Twist() #reinitalize move_cmd
             
             _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
             ang_err.record_err(err_ang)
-            err_msg = ang_err.make_err_val_msg()
+            err_msg = ang_err.make_err_val_msg(ang_gains)
             move_cmd.angular.z = pid(ang_gains,ang_err)
             
             pub_rec_pose.publish(make_rec_pose_msg(pos_node,err_ang))
@@ -211,7 +210,7 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose
             r.sleep()
         
             iterations += 1
-            
+          
         # while not is_robot_stopped() and not rospy.is_shutdown():
         #     _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
         #     ang_err.record_err(err_ang)
@@ -222,7 +221,7 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose
         # pub.publish(Twist())
         # r.sleep()
         # rospy.sleep(2)
-        # move_complete=True
+        move_complete=True
         # if util.check_body_angle(format_model_state(pos_node),format_target(ref_node)):
         #     move_complete = True
         #     debug_info('turn to target final check',move_complete=move_complete,check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
@@ -230,31 +229,54 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose
         #     debug_info('turn to target final check',move_complete=move_complete,check_body_angle=util.check_body_angle(format_model_state(pos_node),format_target(ref_node)))
         # is_first = True
 
-def move_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, pos_err, iterations):
-    rospy.loginfo('Moving To Target')
-    move_complete = False
-    while not move_complete and not rospy.is_shutdown():
+# def move_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, pos_err, iterations):
+#     rospy.loginfo('Moving To Target')
+#     move_complete = False
+#     while not move_complete and not rospy.is_shutdown():
 
-        while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown(): 
-            # move to target
+#         while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown(): 
+#             # move to target
             
-            move_cmd = Twist()
-            err_pos,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
-            pos_err.record_err(err_pos)
-            err_msg = pos_err.make_err_val_msg()
-            move_cmd.linear.x = pid(pos_gains, pos_err)
+#             move_cmd = Twist()
+#             err_pos,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+#             pos_err.record_err(err_pos)
+#             err_msg = pos_err.make_err_val_msg()
+#             move_cmd.linear.x = pid(pos_gains, pos_err)
 
     
-            pub_rec_pose.publish(make_rec_pose_msg(pos_node),err_ang)
-            pub_err.publish(err_msg)
-            pub.publish(move_cmd)
-            iterations += 1
-            r.sleep()
-        pub.publish(Twist())
+#             pub_rec_pose.publish(make_rec_pose_msg(pos_node),err_ang)
+#             pub_err.publish(err_msg)
+#             pub.publish(move_cmd)
+#             iterations += 1
+#             r.sleep()
+#         pub.publish(Twist())
+#         r.sleep()
+#         r.sleep(2)
+#         # if util.check_body_angle(format_model_state(pos_node),format_target(ref_node)):
+#         #     move_complete = True
+
+def move_and_turn_to_target(pos_node, ref_node, pub, pos_err_node, ang_err_node, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
+    # move and turn to target
+    rospy.loginfo('Moving And Turning To Target')
+    while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
+        
+        move_cmd = Twist()
+        err_pos, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+        ang_err.record_err(err_ang)
+        pos_err.record_err(err_pos) 
+        pos_err_msg = pos_err.make_err_val_msg(pos_gains)
+        ang_err_msg = ang_err.make_err_val_msg(ang_gains)
+        move_cmd.angular.z = pid(ang_gains,ang_err)
+        move_cmd.linear.x = pid(pos_gains, pos_err)
+        
+        pos_err_node.publish(pos_err_msg)
+        ang_err_node.publish(ang_err_msg)
+        pub.publish(move_cmd)
+        iterations += 1
         r.sleep()
-        r.sleep(2)
-        # if util.check_body_angle(format_model_state(pos_node),format_target(ref_node)):
-        #     move_complete = True
+    pub.publish(Twist())
+    r.sleep()
+    r.sleep(2)
 
 def turn_to_ref_theta(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, ang_gains, ang_err, iterations):
     rospy.loginfo('Turning To Final Reference Pose')
@@ -266,7 +288,7 @@ def turn_to_ref_theta(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_p
         cur_state = format_target(ref_node)
         err_ang = ref_node.data.theta - cur_state['theta']
         ang_err.record_err(err_ang)
-        err_msg = ang_err.make_err_val_msg()
+        err_msg = ang_err.make_err_val_msg(ang_gains)
         move_cmd.angular.z = pid(ang_gains,ang_err)
 
         # if is_debug_iter(dbg,debug_interval,iterations):
@@ -280,28 +302,7 @@ def turn_to_ref_theta(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_p
     r.sleep()
     r.sleep(2)
 
-def move_and_turn_to_target(pos_node, ref_node, pub, pos_err_node, ang_err_node, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
-    # move and turn to target
-    rospy.loginfo('Moving And Turning To Target')
-    while not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)) and not rospy.is_shutdown():
-        
-        move_cmd = Twist()
-        err_pos, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
-        ang_err.record_err(err_ang)
-        pos_err.record_err(err_pos) 
-        pos_err_msg = pos_err.make_err_val_msg()
-        ang_err_msg = ang_err.make_err_val_msg()
-        move_cmd.angular.z = pid(ang_gains,ang_err)
-        move_cmd.linear.x = pid(pos_gains, pos_err)
-        
-        pos_err_node.publish(pos_err_msg)
-        ang_err_node.publish(ang_err_msg)
-        pub.publish(move_cmd)
-        iterations += 1
-        r.sleep()
-    pub.publish(Twist())
-    r.sleep()
-    r.sleep(2)
+
 
 def is_final_angle(cur_state,ref_theta):
     # checks if body is at final reference angle
