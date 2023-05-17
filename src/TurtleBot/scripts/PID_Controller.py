@@ -11,6 +11,8 @@ import math
 import numpy as np
 
 CTRL_RATE = 0.1
+POS_SAT = 0.5
+ANG_SAT = 2
 class SubscriberNode(object):
     def __init__(self,topic,msg,msg_object):
         self.data = msg_object
@@ -131,7 +133,7 @@ class err_struct(object):
         self.int_err = 0
         self.prev_int_err = 0
 
-def pid(gains,err_struct,is_saturated=False,sat_bound=100):
+def pid(gains,err_struct,is_saturated=True,sat_bound=100):
     if is_saturated:
         sig_out = gains.Kp*err_struct.err + gains.Ki*err_struct.int_err + gains.Kd*err_struct.deriv_err
         if sig_out > sat_bound:
@@ -147,8 +149,15 @@ def pid(gains,err_struct,is_saturated=False,sat_bound=100):
 def have_same_sign(num1,num2):
     return (num1>=0 and num2>=0) or (num1<0 and num2<0)
 
-def is_robot_stopped(pos_node): 
-    pos_node.data.twist
+def is_robot_stopped(twist_msg): 
+    xdot = twist_msg.linear.x
+    ydot = twist_msg.linear.y
+    omegadot = twist_msg.angular.z
+    tol = 0.0001
+    if abs(xdot) < tol and abs(ydot) < tol and abs(omegadot) < tol:
+        return True
+    else:
+        return False
 
 def main():
     rospy.init_node('PID_Controller')
@@ -171,8 +180,8 @@ def main():
     dbg = True
     debug_interval = 20
     
-    # ang_gains = PID_gains(Kp=1,Ki=0.0001,Kd=0.01)
-    # pos_gains = PID_gains(Kp=0.6,Ki=0.0001,Kd=0.1)
+    # ang_gains = PID_gains(Kp=1,Ki=0.001,Kd=0)
+    # pos_gains = PID_gains(Kp=0.15,Ki=0.003,Kd=0)
     ang_gains = PID_gains(Kp=0,Ki=0,Kd=0)
     pos_gains = PID_gains(Kp=0,Ki=0,Kd=0)
     pos_err = err_struct(err_max=100)
@@ -246,7 +255,7 @@ def turn_to_target(pos_node, ref_node, pub, pub_err, pub_rec_pose,pub_model_pose
             _,err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
             ang_err.record_err(err_ang)
             err_msg = ang_err.make_err_val_msg(ang_gains)
-            move_cmd.angular.z = pid(ang_gains,ang_err)
+            move_cmd.angular.z = pid(ang_gains,ang_err,sat_bound=ANG_SAT)
             
             pub_rec_pose.publish(make_rec_pose_msg(pos_node,err_ang))
             pub_err.publish(err_msg)
@@ -312,8 +321,8 @@ def move_and_turn_to_target(pos_node, ref_node, pub, pos_err_node, ang_err_node,
         pos_err.record_err(err_pos) 
         pos_err_msg = pos_err.make_err_val_msg(pos_gains)
         ang_err_msg = ang_err.make_err_val_msg(ang_gains)
-        move_cmd.angular.z = pid(ang_gains,ang_err)
-        move_cmd.linear.x = pid(pos_gains, pos_err,is_saturated=True,sat_bound=5)
+        move_cmd.angular.z = pid(ang_gains,ang_err,sat_bound=ANG_SAT)
+        move_cmd.linear.x = pid(pos_gains, pos_err,sat_bound=POS_SAT)
         
         pub_rec_pose.publish(make_rec_pose_msg(pos_node,err_ang))
         pos_err_node.publish(pos_err_msg)
@@ -322,8 +331,12 @@ def move_and_turn_to_target(pos_node, ref_node, pub, pos_err_node, ang_err_node,
         iterations += 1
         r.sleep()
         rospy.sleep(CTRL_RATE)
-    # pub.publish(Twist())
-    # r.sleep()
+    pub.publish(Twist())
+    is_first = True
+    while not is_robot_stopped(pos_node.twist[1]):
+        if is_first:
+            rospy.loginfo('waiting for robot to stop')
+            is_first = False
 
 def turn_to_ref_theta(pos_node, ref_node, pub, ang_err_node, pos_err_node, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
     rospy.loginfo('Turning To Final Reference Pose')
@@ -338,8 +351,8 @@ def turn_to_ref_theta(pos_node, ref_node, pub, ang_err_node, pos_err_node, pub_r
         pos_err.record_err(err_pos) 
         ang_err.record_err(err_ang)
         err_msg = ang_err.make_err_val_msg(ang_gains)
-        move_cmd.angular.z = pid(ang_gains,ang_err)
-        move_cmd.linear.x = pid(pos_gains, pos_err)
+        move_cmd.angular.z = pid(ang_gains,ang_err,sat_bound=ANG_SAT)
+        # move_cmd.linear.x = pid(pos_gains, pos_err)
 
         ang_err_node.publish(err_msg)
         pub.publish(move_cmd)

@@ -96,6 +96,11 @@ def calc_error(cur_state,target):
         err_pos = -err_pos
     
     err_ang = math.atan2(y_err,x_err) - theta 
+    if err_ang > math.pi:
+        err_ang = -1*(2*math.pi-err_ang)
+    elif err_ang < -math.pi:
+        err_ang = -1*(-2*math.pi-err_ang)
+
     # err_ang = 
     # pid.debug_info("calc_error",theta_ref=math.atan2(y_err,x_err),cur_theta=theta)
 
