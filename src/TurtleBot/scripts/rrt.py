@@ -63,8 +63,7 @@ def BFS(graph,start):
 
     for child in node2expand[1]:
         frontier.append(node_obj(child,start_node))
-    
-
+        
     while not len(frontier) == 0:
         node2explore = frontier.pop(0)
         visited.append(node2explore.state)
@@ -158,7 +157,8 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
     is_path_None = True
     # while is_path_None:
     print('try and find path again')
-    path = searchPath(graph, start, [start])
+    # path = searchPath(graph, start, [start])
+    path = BFS(graph,start)
       
       # if not path is None:
       #   is_path_None = False
