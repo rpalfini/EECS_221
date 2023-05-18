@@ -95,7 +95,7 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
     if len(points) >= MIN_NUM_VERT:
       
       if not phaseTwo:
-        print 'Phase Two'
+        print('Phase Two')
       phaseTwo = True
 
     if phaseTwo:
@@ -108,26 +108,26 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
       points.extend(newPoints)
 
   if goal in points:
-    print 'Goal found, total vertex in graph:', len(points), 'total random points generated:', i
+    print('Goal found, total vertex in graph:', len(points), 'total random points generated:', i)
     is_path_None = True
     # while is_path_None:
-    print 'try and find path again'
+    print('try and find path again')
     path = searchPath(graph, start, [start])
       
       # if not path is None:
       #   is_path_None = False
     try:
-      print 'Showing resulting map'
-      print 'Final path:', path
+      print('Showing resulting map')
+      print('Final path:', path)
       # print 'The final path is made from:', len(path),'connected points'
     except:
-      print 'Path is None even though goal was found'
+      print('Path is None even though goal was found')
     # plot_traj_found()
   else:
     path = None
-    print 'Reached maximum number of vertex and goal was not found'
-    print 'Total vertex in graph:', len(points), 'total random points generated:', i
-    print 'Showing resulting map'
+    print('Reached maximum number of vertex and goal was not found')
+    print('Total vertex in graph:', len(points), 'total random points generated:', i)
+    print('Showing resulting map')
     # plot_traj_found()
 
   return path,graph
