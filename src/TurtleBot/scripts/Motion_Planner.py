@@ -127,7 +127,7 @@ def main():
                 is_traj_processed = True
         elif testing_problem == 3:
             while not target_received:
-                # if not target_pose_node.data.data == [] and not target_pose_node.data.data == prev_traj:
+                # if not target_pose_node.data.data == [] ansssssd not target_pose_node.data.data == prev_traj:
                 if is_new_msg(target_pose_node,prev_target_pose):
                     log_rec_traj(target_pose_node)
                     prev_target_pose = target_pose_node.data.data

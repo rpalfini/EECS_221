@@ -15,7 +15,7 @@ import time
 
 dbg = True
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
-MAX_NUM_VERT = 12000 # Maximum number of vertex in the graph
+MAX_NUM_VERT = 70000 # Maximum number of vertex in the graph
 STEP_DISTANCE = 20 # Maximum distance between two vertex
 SEED = None # For random numbers
 
@@ -52,6 +52,7 @@ def is_present(target, lst):
     return target in lst
 
 def BFS(graph,start):
+    rospy.loginfo('starting BFS')
     frontier = []
     visited = []
     # find initial edge
@@ -90,7 +91,7 @@ def BFS(graph,start):
 
 def rapidlyExploringRandomTree(img, start, goal, seed=None):
   rospy.loginfo('entered rapidlyExploringRandomTree')
-  hundreds = 100
+  hundreds = 1000
   random.seed(seed)
   points = []
   graph = []
@@ -99,7 +100,6 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
   # print 'Generating and conecting random points'
   occupied = True
   phaseTwo = False
-  dog = 2
   # Phase two values (points 5 step distances around the goal point)
   minX = max(goal[0] - 5 * STEP_DISTANCE, 0)
   maxX = min(goal[0] + 5 * STEP_DISTANCE, len(img[0]) - 1)
@@ -114,9 +114,10 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
     #   print i, 'points randomly generated'
 
     if (len(points) % hundreds) == 0:
-      # print len(points), 'vertex generated'
+      print(len(points), 'vertex generated')
       hundreds = hundreds + 100
-
+    if len(points) == 1:
+       print('point length is 1, if message repeats, that means invalid start_goal location sent to rrt')
     while(occupied):
       if phaseTwo and (random.random() > 0.8):
         point = [ random.randint(minX, maxX), random.randint(minY, maxY) ]
@@ -155,11 +156,12 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
   if goal in points:
     print('Goal found, total vertex in graph:', len(points), 'total random points generated:', i)
     # while is_path_None:
-    print('try and find path again')
+    # print('try and find path again')
     # path = searchPath(graph, start, [start])
     path = BFS(graph,start)
+    if path is None:
+       output_dbg_info('Is_None_search',graph=graph,goal=goal,path=path,points=points)
     # path = searchPath(graph,start,[start])
-      
     print('Showing resulting map')
     print('Final path:', path)
     print('The final path is made from:', len(path),'connected points')
@@ -185,8 +187,8 @@ def searchPath(graph, point, path):
       # pid.debug_info('searchPath',len_point=len(point),len_graph=len(graph))
       # pid.debug_info('search_path_path',len_path=len(path),path=path)
       # pid.debug_info('path type',ptype = type(path))
-    rospy.loginfo('entered_early_return')
-    output_dbg_info('searchPath_bad',graph=graph,point=point,path=path)
+    # rospy.loginfo('entered_early_return')
+    # output_dbg_info('searchPath_bad',graph=graph,point=point,path=path)
     return path
 
   for link in p[1]:
@@ -278,10 +280,6 @@ def map_img(arr):
     return im[::-1]
 
 def get_index_from_coordinates(start_goal_data,map_node):
-  def convert_to_map_coord(real,origin,resolution):
-    # return origin + int(round(real/resolution)) #This looks incorrect...
-    point = abs(real-origin)
-    return int(round(point/resolution))
   
   # start_goal_data should be Float64MultiArray of length 4
   if not len(start_goal_data) == 4:
@@ -292,10 +290,10 @@ def get_index_from_coordinates(start_goal_data,map_node):
   y_origin = map_node.data.info.origin.position.y
   resolution = map_node.data.info.resolution
 
-  x_start_index = convert_to_map_coord(start_real[0],x_origin,resolution)
-  y_start_index = convert_to_map_coord(start_real[1],y_origin,resolution)
-  x_goal_index = convert_to_map_coord(goal_real[0],x_origin,resolution)
-  y_goal_index = convert_to_map_coord(goal_real[1],y_origin,resolution)
+  x_start_index = convert_real_to_index(start_real[0],x_origin,resolution)
+  y_start_index = convert_real_to_index(start_real[1],y_origin,resolution)
+  x_goal_index = convert_real_to_index(goal_real[0],x_origin,resolution)
+  y_goal_index = convert_real_to_index(goal_real[1],y_origin,resolution)
 
   start_goal_index = (x_start_index,y_start_index,x_goal_index,y_goal_index)
   return start_goal_index
@@ -311,6 +309,9 @@ def main():
 
   # set up publishers
   traj_pub = rospy.Publisher('/trajectory',Float64MultiArray,queue_size=5)
+
+  # option
+  plot_traj = True
 
   # flags
   is_traj_computed = False
@@ -338,31 +339,61 @@ def main():
       start = [start_goal_index[0],start_goal_index[1]]
       goal = [start_goal_index[2],start_goal_index[3]]
       path,graph = find_path_RRT(start,goal,map_node.current_map)
-      pid.debug_info('rrt',path_type=type(path),graph_type=type(graph))
-      pid.debug_info('rrt',len_path=len(path))
+      pid.debug_info('rrt',path_type=type(path),graph_type=type(graph),len_path=len(path)) if dbg else None
       print('path ' + str(len(path)))
       rospy.loginfo('showing path')
       for item in path:
         print(item)
-      path_msg = create_path_msg(path)
+  
+      path_msg = create_path_msg(path,map_node.data.info)
       traj_pub.publish(path_msg)
       is_traj_computed = True
       rospy.loginfo('trajectory found and outputted')
+      if plot_traj:
+        rospy.loginfo('Plotting trajectory')
+        plot_traj_found(path)
 
     if not cur_start_goal == start_goal_node.data.data:
       rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
       cur_start_goal = start_goal_node.data.data
       is_traj_computed = False
 
-def create_path_msg(path):
+def create_path_msg(path,map_info,convert_to_real=True):
   path_msg = Float64MultiArray()
   path_msg.data = [coord for point in path for coord in point]
+  if convert_to_real:
+    path_msg.data = convert_traj_to_real(path_msg.data,map_info)
   return path_msg
 
-def plot_traj_found():
+def convert_traj_to_real(traj_list,map_info):
+    real_traj = []
+    is_x_coord = True
+    resolution = map_info.resolution
+    for point in traj_list:
+        if is_x_coord:
+           origin = map_info.origin.position.x
+           is_x_coord = False
+        else:
+           origin = map_info.origin.position.y
+           is_x_coord = True
+        real_traj.append(convert_index_to_real(point,origin,resolution))
+    return real_traj
+
+def convert_index_to_real(index,origin,resolution):
+    return index*resolution + origin
+
+def convert_real_to_index(real,origin,resolution):
+    # return origin + int(round(real/resolution)) #This looks incorrect...
+    point = abs(real-origin)
+    return int(round(point/resolution))
+
+def plot_traj_found(path):
   img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
   plt.imshow(img,cmap=cm.gray)
   plt.axis('off')
+  x_coords = [point[0] for point in path]
+  y_coords = [384-point[1] for point in path]
+  plt.plot(x_coords,y_coords,color='red',linewidth=2)
   plt.show()
 
 def output_dbg_info(fheader,**kwargs):
