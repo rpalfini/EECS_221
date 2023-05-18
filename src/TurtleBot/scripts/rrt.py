@@ -154,22 +154,16 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
 
   if goal in points:
     print('Goal found, total vertex in graph:', len(points), 'total random points generated:', i)
-    is_path_None = True
     # while is_path_None:
     print('try and find path again')
     # path = searchPath(graph, start, [start])
     path = BFS(graph,start)
     # path = searchPath(graph,start,[start])
       
-      # if not path is None:
-      #   is_path_None = False
-    try:
-      print('Showing resulting map')
-      print('Final path:', path)
-      # print 'The final path is made from:', len(path),'connected points'
-    except:
-      print('Path is None even though goal was found')
-    # plot_traj_found()
+    print('Showing resulting map')
+    print('Final path:', path)
+    print('The final path is made from:', len(path),'connected points')
+
   else:
     path = None
     print('Reached maximum number of vertex and goal was not found')
