@@ -43,6 +43,51 @@ class SubscriberNode_Map(pid.SubscriberNode):
       current_col += 1  
     return map_out 
 
+class node_obj(object):
+    def __init__(self,node,parent):
+        self.state = node #this should be (x,y) value
+        self.parent = parent #this should refer to the parent node_obj
+
+def is_present(target, lst):
+    return target in lst
+
+def BFS(graph,start):
+    frontier = []
+    visited = []
+    # find initial edge
+    for node_edge in graph:
+        if start == node_edge[0]:
+            node2expand = node_edge
+            break
+    # add first level deep to initialize frontier
+    start_node = node_obj(node2expand[0],None)
+    visited.append(node2expand[0])
+
+    for child in node2expand[1]:
+        frontier.append(node_obj(child,start_node))
+        
+    while not len(frontier) == 0:
+        node2explore = frontier.pop(0)
+        visited.append(node2explore.state)
+        if node2explore.state == graph[-1][0]: #check if node_edge is goal
+            break
+        for node_edge in graph:
+            if node2explore.state == node_edge[0]:
+                node2expand = node_edge
+                break
+        for child in node2expand[1]:
+            if not is_present(child,visited):
+                frontier.append(node_obj(child,node2explore))
+
+    path = [node2explore.state]
+    parent_node = node2explore.parent
+    # while not parent_node.state == start:
+    while not parent_node is None:
+        node2explore = parent_node
+        parent_node = node2explore.parent
+        path.insert(0,node2explore.state)
+    return path  
+
 def rapidlyExploringRandomTree(img, start, goal, seed=None):
   rospy.loginfo('entered rapidlyExploringRandomTree')
   hundreds = 100
@@ -97,7 +142,7 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
     if len(points) >= MIN_NUM_VERT:
       
       if not phaseTwo:
-        print 'Phase Two'
+        print('Phase Two')
       phaseTwo = True
 
     if phaseTwo:
@@ -108,28 +153,28 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
       points.extend(newPoints)
 
   if goal in points:
-    print 'Goal found, total vertex in graph:', len(points), 'total random points generated:', i
+    print('Goal found, total vertex in graph:', len(points), 'total random points generated:', i)
     is_path_None = True
     # while is_path_None:
-    print 'try and find path again'
-    path = searchPath(graph, start, [start])
-    if path is None:
-      output_dbg_info('rrt_main',graph=graph,start=start,path=path)
+    print('try and find path again')
+    # path = searchPath(graph, start, [start])
+    path = BFS(graph,start)
+    # path = searchPath(graph,start,[start])
       
       # if not path is None:
       #   is_path_None = False
     try:
-      print 'Showing resulting map'
-      print 'Final path:', path
+      print('Showing resulting map')
+      print('Final path:', path)
       # print 'The final path is made from:', len(path),'connected points'
     except:
-      print 'Path is None even though goal was found'
+      print('Path is None even though goal was found')
     # plot_traj_found()
   else:
     path = None
-    print 'Reached maximum number of vertex and goal was not found'
-    print 'Total vertex in graph:', len(points), 'total random points generated:', i
-    print 'Showing resulting map'
+    print('Reached maximum number of vertex and goal was not found')
+    print('Total vertex in graph:', len(points), 'total random points generated:', i)
+    print('Showing resulting map')
     # plot_traj_found()
 
   return path,graph
