@@ -10,8 +10,10 @@ import cv2
 import PID_Controller as pid
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Float64MultiArray
+import pickle
+import time
 
-dbg = False
+dbg = True
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
 MAX_NUM_VERT = 12000 # Maximum number of vertex in the graph
 STEP_DISTANCE = 20 # Maximum distance between two vertex
@@ -61,8 +63,8 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
 
   i = 0
   while (goal not in points) and (len(points) < MAX_NUM_VERT):
-    if dbg:
-      rospy.loginfo('entered goal not found loop')
+    # if dbg:
+    #   rospy.loginfo('entered goal not found loop')
     # if (i % 100) == 0:
     #   print i, 'points randomly generated'
 
@@ -88,9 +90,9 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
     points.extend(newPoints)
 
     i = i + 1
-    if dbg:
-      # pid.debug_info('length of points',p=len(points))
-      rospy.loginfo('length of points %d' % (len(points)))
+    # if dbg:
+    #   # pid.debug_info('length of points',p=len(points))
+    #   rospy.loginfo('length of points %d' % (len(points)))
     
     if len(points) >= MIN_NUM_VERT:
       
@@ -99,8 +101,6 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
       phaseTwo = True
 
     if phaseTwo:
-      if dbg:
-        rospy.loginfo('entered phase two if')
       nearest = findNearestPoint(points, goal)
       newPoints = connectPoints(goal, nearest, img)
       addToGraph(graph, newPoints, goal)
@@ -113,6 +113,8 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
     # while is_path_None:
     print 'try and find path again'
     path = searchPath(graph, start, [start])
+    if path is None:
+      output_dbg_info('rrt_main',graph=graph,start=start,path=path)
       
       # if not path is None:
       #   is_path_None = False
@@ -134,15 +136,18 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
 
 def searchPath(graph, point, path):
   for i in graph:
-    pid.debug_info('search_path',)
+    # pid.debug_info('for i in graph',i=i,graph=graph,graph_type=type(graph)) if dbg else None
     if point == i[0]:
+      # pid.debug_info('point == i[0]',point=point,i_0=i[0],i_type = type(i)) if dbg else None
       p = i
 
   if p[0] == graph[-1][0]:
-    pid.debug_info('searchPath',len_point=len(point),len_graph=len(graph))
-    pid.debug_info('search_path_path',len_path=len(path),path=path)
-    pid.debug_info('path type',ptype = type(path))
+    
+      # pid.debug_info('searchPath',len_point=len(point),len_graph=len(graph))
+      # pid.debug_info('search_path_path',len_path=len(path),path=path)
+      # pid.debug_info('path type',ptype = type(path))
     rospy.loginfo('entered_early_return')
+    output_dbg_info('searchPath_bad',graph=graph,point=point,path=path)
     return path
 
   for link in p[1]:
@@ -320,6 +325,13 @@ def plot_traj_found():
   plt.imshow(img,cmap=cm.gray)
   plt.axis('off')
   plt.show()
+
+def output_dbg_info(fheader,**kwargs):
+  current_time = time.strftime("%Y%m%d%H%M%S")
+  file_name = fheader + '_' + current_time + '.pkl'
+  with open(file_name, 'wb') as file:
+    # Write the data to the file using pickle.dump()
+    pickle.dump(kwargs, file)
 
 if __name__ == "__main__":
   main()
