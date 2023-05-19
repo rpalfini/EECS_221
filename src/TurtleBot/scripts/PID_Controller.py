@@ -13,7 +13,7 @@ import numpy as np
 CTRL_RATE = 0.1
 POS_SAT = 0.5
 ANG_SAT = 2
-MODEL_NAME = ['turtlebot3','turtlebot3_burger']
+
 class SubscriberNode(object):
     def __init__(self,topic,msg,msg_object):
         self.data = msg_object
@@ -400,9 +400,10 @@ def is_final_angle(cur_state,ref_theta):
 
 ## Utility Functions
 def find_model_index(pos_node):
+    model_names = ['turtlebot3','turtlebot3_burger']
     names = pos_node.data.name
     model_idx = []
-    for name in MODEL_NAME:
+    for name in model_names:
         if name in names:
             model_idx.append(names.index(name))
     if not len(model_idx) == 1:

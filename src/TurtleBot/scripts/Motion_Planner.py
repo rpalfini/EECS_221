@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 
 import rospy
+import math
 from TurtleBot.msg import Reference_Pose, PID_Gains
 import swim_to_goal as util
 import PID_Controller as pid
@@ -22,7 +23,7 @@ def request_ref_point():
     theta = util.request_number('theta (radians)',bounds=(-3.14,3.14))
     return (x,y,theta)
 
-def create_ref_msg(mode,ref_tuple):
+def create_ref_msg(mode,ref_tuple): # also used in testing problem 3
     target_pose = Reference_Pose()
     target_pose.mode = mode
     target_pose.point.x = ref_tuple[0]
@@ -54,16 +55,34 @@ def request_start_goal_msg():
     return msg_out
 
 # For use in problem 3
-def find_angle_next_point(cur_location,next_point):
+def find_angle_next_point(cur_point,next_point):
     # finds the angle to next point and adds to ref msg
-    return 1
+    x_err = next_point.x - cur_point.x
+    y_err = next_point.y - cur_point.y
+    next_angle = math.atan2(y_err,x_err)
+    return next_angle
 
-def make_start_goal_msg():
-    #makes start_goal msg that gets sent to RRT
-    return Float64MultiArray() 
+def make_start_goal_msg(target_pose_node,current_pose_node):
+    #makes start_goal msg that gets sent to RRT, RRT expects four number array (x_start,y_start,x_goal,y_goal)
+    input_valid = False
+    is_first = True
+    while not input_valid:
+        goal_coord = target_pose_node.data.data
+        if len(goal_coord) != 2:
+            is_first = status_msg('invalid goal received, send goal of length 2',is_first)
+        elif len(goal_coord) == 2:
+            input_valid = True
+    model_num = pid.find_model_index(current_pose_node)
+    x_start = current_pose_node.data.pose[model_num].position.x
+    y_start = current_pose_node.data.pose[model_num].position.y
+    x_goal = goal_coord[0]
+    y_goal = goal_coord[1]
+    output = [x_start, y_start, x_goal, y_goal]
+    msg = Float64MultiArray()
+    msg.data = output
+    return msg
 
-
-def is_new_msg(data_node,prev_traj):
+def is_new_traj_msg(data_node,prev_traj):
     if not data_node.data.data == [] and not data_node.data.data == prev_traj:
         return True
     else:
@@ -73,19 +92,26 @@ def log_rec_traj(traj_in_node):
     #expect traj_vector to be 4 long list ordered x_start y_start x_goal y_goal
     rospy.loginfo('Trajectory Received for start (%.2f,%.2f) and end (%.2f,%.2f)' % (traj_in_node.data[0],traj_in_node.data[1],traj_in_node.data[2],traj_in_node.data[3]))
 
+def status_msg(msg,is_first):
+    if is_first:
+        rospy.loginfo(msg)
+    return False #use output to turn off is_first
+    
 
 def main():
     rospy.init_node('Motion_Planner')
     testing_problem = 3 # this variable used to specify which problem from miniproject 2 we are trying to test
-    is_user_input = True
+    is_user_input = True # turns on user input for part 1 from command line
     is_traj_processed = False
     prev_traj = []
     prev_target_pose = []
-    target_received = False
-    mode = 0
+    target_received = False # flag 
+    cur_pose_received = False
+    mode = 0 # mode to use for part 3
     msg_count = 1
     r = rospy.Rate(10)
     cur_location = 0
+    is_first = True #flag for displaying status messages
     
     if testing_problem == 1: #testing PID Controller
         pos_node = pid.SubscriberNode(topic='/gazebo/model_states',msg=pid.ModelStates,msg_object=pid.ModelStates())
@@ -111,6 +137,7 @@ def main():
             while not rospy.is_shutdown() and not is_goal_state(pos_node,ref_pose):
                 pub_ref_pose.publish(ref_pose)
                 r.sleep()
+        
         elif testing_problem == 2:
             if is_traj_processed == True:
                 start_goal = request_start_goal_msg()
@@ -119,29 +146,39 @@ def main():
             start_goal_pub.publish(start_goal)
             r.sleep()
             # if not traj_node.data.data == [] and not traj_node.data.data == prev_traj:
-            if is_new_msg(traj_node,prev_traj):
+            if is_new_traj_msg(traj_node,prev_traj):
                 # rospy.loginfo('Trajectory Received for start (%.2f,%.2f) and end (%.2f,%.2f)' % (start_goal.data[0],start_goal.data[1],start_goal.data[2],start_goal.data[3]))
                 log_rec_traj(start_goal)
                 rospy.loginfo(str(traj_node.data.data))
                 prev_traj = traj_node.data.data
                 is_traj_processed = True
+
         elif testing_problem == 3:
+            while not cur_pose_received:
+                is_first = status_msg('waiting for model pose',is_first)
+                if pos_node.is_received():
+                    cur_pose_received == True
+            is_first = True
             while not target_received:
+                is_first = status_msg('waiting for target location',is_first)
                 # if not target_pose_node.data.data == [] and not target_pose_node.data.data == prev_traj:
-                if is_new_msg(target_pose_node,prev_target_pose):
+                if is_new_traj_msg(target_pose_node,prev_target_pose):
                     log_rec_traj(target_pose_node)
                     prev_target_pose = target_pose_node.data.data
                     target_received = True
                     start_goal_msg = make_start_goal_msg(target_pose_node)
                     start_goal_pub.publish(start_goal_msg)
                     r.sleep()
+            is_first = True
             while not is_traj_processed:
-                if is_new_msg(traj_node,prev_traj):
+                is_first = status_msg('sent goal location to rrt, waiting for trajectory',is_first)
+                if is_new_traj_msg(traj_node,prev_traj):
                     log_rec_traj(start_goal)
                     rospy.loginfo(str(traj_node.data.data))
                     prev_traj = traj_node.data.data
                     is_traj_processed = True
             traj = traj_node.data.data
+            rospy.loginfo('sending waypoints to controller')
             for ii in range(0,len(traj)-1,2):
                 next_point = (traj[ii],traj[ii+1])
                 next_angle = find_angle_next_point(cur_location,next_point)
@@ -149,7 +186,6 @@ def main():
                 rospy.loginfo('sending point number %d at location at (%.2f,%.2f) with angle (%.2f) ' % (msg_count,next_point[0],next_point[1],next_angle))
                 msg_count += 1
                 while not is_goal_state(pos_node,ref_pose):
-                    
                     pub_ref_pose.publish(ref_pose)
                 rospy.loginfo('robot arrived at location (%.2f,%.2f) with angle (%.2f,%.2f)' % (next_point[0],next_point[1],next_angle))
             rospy.loginfo('robot arrived at goal')

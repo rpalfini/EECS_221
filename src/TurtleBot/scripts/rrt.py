@@ -8,6 +8,7 @@ from scipy.misc import imread
 import random, sys, math, os.path
 import cv2
 import PID_Controller as pid
+import Motion_Planner as mp
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Float64MultiArray
 import pickle
@@ -314,11 +315,13 @@ def main():
   plot_traj = True
 
   # flags
+  is_first = True
   is_traj_computed = False
   is_first_point_rec = False
   is_map_loaded = False
   # flag to make sure RRT isn't activated until a start goal is received
   while not is_first_point_rec and not rospy.is_shutdown():
+    is_first = mp.status_msg('Waiting for first start_goal',is_first)
     if not start_goal_node.data.data == []:
       rospy.loginfo('Waiting for first start_goal')
       is_first_point_rec = True
