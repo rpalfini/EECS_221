@@ -369,7 +369,7 @@ def turn_to_ref_theta(pos_node, ref_node, pub, ang_err_node, pos_err_node, pub_r
         move_cmd = Twist()
         err_pos, _= util.calc_error(format_model_state(pos_node),format_target(ref_node))
         cur_state = format_model_state(pos_node)
-        err_ang = ref_node.data.theta - cur_state['theta']
+        err_ang = util.calc_ang_error(cur_state['theta'],ref_node.data.theta)
         pos_err.record_err(err_pos) 
         ang_err.record_err(err_ang)
         pos_err_msg = pos_err.make_err_val_msg(pos_gains)
@@ -387,12 +387,9 @@ def turn_to_ref_theta(pos_node, ref_node, pub, ang_err_node, pos_err_node, pub_r
     # r.sleep()
     # r.sleep(2)
 
-
-
 def is_final_angle(cur_state,ref_theta):
     # checks if body is at final reference angle
-    
-    err_ang = ref_theta - cur_state['theta']
+    err_ang = util.calc_ang_error(cur_state['theta'],ref_theta)
     # debug_info('is_final_angle',ref_theta=ref_theta,cur_theta=cur_state['theta'])
     if abs(err_ang) < math.pi/180:
         result = True

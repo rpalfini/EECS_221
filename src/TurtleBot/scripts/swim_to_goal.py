@@ -82,8 +82,7 @@ def calc_error(cur_state,target):
     # target is a length 2 iterable that has the x and y coordinates of final location
     pose = cur_state['pose']
     theta = cur_state['theta']
-    x_err = target[0] - pose.x 
-    y_err = target[1] - pose.y
+    x_err, y_err = calc_vec_err(cur_state, target)
     err_pos = math.sqrt(x_err**2 + y_err**2)
     # check sign of error_pos
     turtle_pos = np.array([pose.x,pose.y])
@@ -97,15 +96,24 @@ def calc_error(cur_state,target):
     if dot_product > 0:
         err_pos = -err_pos
     
-    err_ang = math.atan2(y_err,x_err) - theta 
+    ref_angle = math.atan2(y_err,x_err)
+    err_ang = calc_ang_error(theta, ref_angle)
+
+    # pid.debug_info("calc_error",theta_ref=math.atan2(y_err,x_err),cur_theta=theta)
+    return err_pos, err_ang
+
+def calc_ang_error(theta, ref_angle):
+    err_ang = ref_angle - theta 
     if err_ang > math.pi:
         err_ang = -1*(2*math.pi-err_ang)
     elif err_ang < -math.pi:
         err_ang = -1*(-2*math.pi-err_ang)
+    return err_ang
 
-    # err_ang = 
-    # pid.debug_info("calc_error",theta_ref=math.atan2(y_err,x_err),cur_theta=theta)
-    return err_pos, err_ang
+def calc_vec_err(cur_state, target):
+    x_err = target[0] - cur_state['pose'].x 
+    y_err = target[1] - cur_state['pose'].y
+    return x_err,y_err
 
 def check_if_arrived(pose,target):
     err_pos,_ = calc_error(pose,target)
