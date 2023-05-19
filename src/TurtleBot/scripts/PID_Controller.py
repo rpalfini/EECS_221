@@ -13,6 +13,7 @@ import numpy as np
 CTRL_RATE = 0.1
 POS_SAT = 0.5
 ANG_SAT = 2
+MODEL_NAME = ['turtlebot3','turtlebot3_burger']
 class SubscriberNode(object):
     def __init__(self,topic,msg,msg_object):
         self.data = msg_object
@@ -72,10 +73,10 @@ class err_struct(object):
     def record_err(self,new_err):
         # dt is the time between measurements
         self.update_err(new_err)
-        # if have_same_sign(self.err,self.prev_err):
-        new_int_err = self.accumulate_error(new_err)
-        # else:
-        #     new_int_err = 0
+        if have_same_sign(self.err,self.prev_err):
+            new_int_err = self.accumulate_error(new_err)
+        else:
+            new_int_err = 0
         self.update_int_err(new_int_err)
         self.update_d_error(new_err)
 
@@ -153,8 +154,9 @@ def is_robot_stopped(twist_msg):
     xdot = twist_msg.linear.x
     ydot = twist_msg.linear.y
     omegadot = twist_msg.angular.z
-    tol = 0.0001
-    if abs(xdot) < tol and abs(ydot) < tol and abs(omegadot) < tol:
+    tol = 0.001
+    ang_tol = 0.01
+    if abs(xdot) < tol and abs(ydot) < tol and abs(omegadot) < ang_tol:
         return True
     else:
         return False
@@ -176,16 +178,15 @@ def main():
     pos_node = SubscriberNode_Repeat(topic='/gazebo/model_states',msg = ModelStates,msg_object = ModelStates(),repeat_topic_node = pub_model_pose)
     ref_node = SubscriberNode(topic='/reference_pose',msg = Reference_Pose,msg_object = Reference_Pose())
     
-
     dbg = True
     debug_interval = 20
     
     # ang_gains = PID_gains(Kp=1,Ki=0.001,Kd=0)
     # pos_gains = PID_gains(Kp=0.15,Ki=0.003,Kd=0)
-    ang_gains = PID_gains(Kp=0,Ki=0,Kd=0)
-    pos_gains = PID_gains(Kp=0,Ki=0,Kd=0)
-    pos_err = err_struct(err_max=100)
-    ang_err = err_struct()
+    ang_gains = PID_gains(Kp=1,Ki=0.001,Kd=0)
+    pos_gains = PID_gains(Kp=0.17,Ki=0.003,Kd=0.01)
+    pos_err = err_struct(err_max=50)
+    ang_err = err_struct(err_max=15)
     
     if test_mode:
         pos_gains_node=SubscriberNodeUpdateGains(topic='/pos_gains',msg=PID_Gains,msg_object=PID_Gains(),gains_obj=pos_gains)
@@ -194,6 +195,7 @@ def main():
     iterations=0 # used for debugging
 
     first_time = True
+    controller_active = False
     while not ref_node.is_received():
         if first_time:
             rospy.loginfo('waiting for ref msg')
@@ -205,8 +207,17 @@ def main():
             # if not is_body_angle:
             activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
         else:
-            if not util.check_if_arrived(format_model_state(pos_node),format_target(ref_node)):
+            is_at_ref = util.check_if_arrived(format_model_state(pos_node),format_target(ref_node))
+            is_at_final_angle = is_final_angle(format_model_state(pos_node),ref_node.data.theta)
+            if not is_at_ref or not is_at_final_angle:
+                if not controller_active:
+                    rospy.loginfo('activating controller: is_arrived = %s is_final_angle = %s' % (is_at_ref,is_at_final_angle)) 
+                    controller_active = True
                 activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, pos_gains, ang_gains, pos_err, ang_err, iterations)
+            else:
+                if controller_active:
+                    rospy.loginfo('turning off controller')
+                    controller_active = False 
 
         # publish_nodes(pos_node, pub, pub_err, pub_rec_pose, r, move_cmd, err_ang, err_msg)
 
@@ -215,7 +226,8 @@ def activate_controller(pos_node, ref_node, pub, pos_pub_err, ang_pub_err, pub_r
     is_final_pose = False
     while not is_final_pose and not rospy.is_shutdown():
         is_arrived = util.check_if_arrived(format_model_state(pos_node),format_target(ref_node))
-        if not is_arrived:
+        is_ref_angle = is_final_angle(format_model_state(pos_node),ref_node.data.theta)
+        if not is_arrived or not is_ref_angle:
             if ref_node.data.mode == 0:
                 # first turn to face target, then move to target, then adjust to final reference angle
                 rospy.loginfo('Using Mode 0')
@@ -333,10 +345,20 @@ def move_and_turn_to_target(pos_node, ref_node, pub, pos_err_node, ang_err_node,
         rospy.sleep(CTRL_RATE)
     pub.publish(Twist())
     is_first = True
-    while not is_robot_stopped(pos_node.twist[1]):
+    model = find_model_index(pos_node)
+    while not is_robot_stopped(pos_node.data.twist[model]):
         if is_first:
             rospy.loginfo('waiting for robot to stop')
             is_first = False
+        err_pos, err_ang = util.calc_error(format_model_state(pos_node),format_target(ref_node))
+        ang_err.record_err(err_ang)
+        pos_err.record_err(err_pos) 
+        pos_err_msg = pos_err.make_err_val_msg(pos_gains)
+        ang_err_msg = ang_err.make_err_val_msg(ang_gains)
+        pub_rec_pose.publish(make_rec_pose_msg(pos_node,err_ang))
+        pos_err_node.publish(pos_err_msg)
+        ang_err_node.publish(ang_err_msg)
+        r.sleep()
 
 def turn_to_ref_theta(pos_node, ref_node, pub, ang_err_node, pos_err_node, pub_rec_pose,pub_model_pose, r, dbg, debug_interval, ang_gains, ang_err, pos_gains, pos_err, iterations):
     rospy.loginfo('Turning To Final Reference Pose')
@@ -350,11 +372,13 @@ def turn_to_ref_theta(pos_node, ref_node, pub, ang_err_node, pos_err_node, pub_r
         err_ang = ref_node.data.theta - cur_state['theta']
         pos_err.record_err(err_pos) 
         ang_err.record_err(err_ang)
-        err_msg = ang_err.make_err_val_msg(ang_gains)
+        pos_err_msg = pos_err.make_err_val_msg(pos_gains)
+        ang_err_msg = ang_err.make_err_val_msg(ang_gains)
         move_cmd.angular.z = pid(ang_gains,ang_err,sat_bound=ANG_SAT)
-        # move_cmd.linear.x = pid(pos_gains, pos_err)
+        move_cmd.linear.x = pid(pos_gains, pos_err)
 
-        ang_err_node.publish(err_msg)
+        pos_err_node.publish(pos_err_msg)
+        ang_err_node.publish(ang_err_msg)
         pub.publish(move_cmd)
         iterations += 1
         r.sleep()
@@ -378,7 +402,18 @@ def is_final_angle(cur_state,ref_theta):
     return result
 
 ## Utility Functions
-def make_rec_pose_msg(pos_node,ang_err,model=1):
+def find_model_index(pos_node):
+    names = pos_node.data.name
+    model_idx = []
+    for name in MODEL_NAME:
+        if name in names:
+            model_idx.append(names.index(name))
+    if not len(model_idx) == 1:
+        raise Exception("More than one model matched model_name")
+    return model_idx[0]
+    
+def make_rec_pose_msg(pos_node,ang_err):
+    model = find_model_index(pos_node)
     msg_out = cur_pose()
     msg_out.x = pos_node.data.pose[model].position.x
     msg_out.y = pos_node.data.pose[model].position.y
@@ -404,11 +439,11 @@ def format_target(node):
 
 def format_model_state(node):
     # this expects node of type gazebo_msg/model_state
-    model = 1
     if len(node.data.pose) == 0:
         pose_val_out = Point()
         euler_angs = [0,0,0]
     else:
+        model = find_model_index(node)
         pose_val_out = node.data.pose[model].position
         euler_angs = quaternion_to_euler(node.data.pose[model].orientation)
     

@@ -88,11 +88,13 @@ def calc_error(cur_state,target):
     # check sign of error_pos
     turtle_pos = np.array([pose.x,pose.y])
     target_vec = np.array([target[0],target[1]])
-    vec_sub = target_vec - turtle_pos
-    turtle_vec = np.array([pose.x*(math.cos(theta)),pose.y*(math.sin(theta))])
+    # vec_sub = target_vec - turtle_pos # I think this one is the wrong sign
+    vec_sub = turtle_pos - target_vec
+    # turtle_vec = np.array([pose.x*(math.cos(theta)),pose.y*(math.sin(theta))])
+    turtle_vec = np.array([math.cos(theta),math.sin(theta)])
     dot_product = np.dot(turtle_vec,vec_sub)
     # rospy.loginfo('dot product = %.2f' % dot_product)
-    if dot_product < 0:
+    if dot_product > 0:
         err_pos = -err_pos
     
     err_ang = math.atan2(y_err,x_err) - theta 
@@ -103,7 +105,6 @@ def calc_error(cur_state,target):
 
     # err_ang = 
     # pid.debug_info("calc_error",theta_ref=math.atan2(y_err,x_err),cur_theta=theta)
-
     return err_pos, err_ang
 
 def check_if_arrived(pose,target):

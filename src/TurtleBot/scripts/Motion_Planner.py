@@ -76,7 +76,7 @@ def log_rec_traj(traj_in_node):
 
 def main():
     rospy.init_node('Motion_Planner')
-    testing_problem = 2 # this variable used to specify which problem from miniproject 2 we are trying to test
+    testing_problem = 1 # this variable used to specify which problem from miniproject 2 we are trying to test
     is_user_input = True
     is_traj_processed = False
     prev_traj = []
@@ -127,7 +127,7 @@ def main():
                 is_traj_processed = True
         elif testing_problem == 3:
             while not target_received:
-                # if not target_pose_node.data.data == [] ansssssd not target_pose_node.data.data == prev_traj:
+                # if not target_pose_node.data.data == [] and not target_pose_node.data.data == prev_traj:
                 if is_new_msg(target_pose_node,prev_target_pose):
                     log_rec_traj(target_pose_node)
                     prev_target_pose = target_pose_node.data.data
