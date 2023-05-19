@@ -76,7 +76,7 @@ def log_rec_traj(traj_in_node):
 
 def main():
     rospy.init_node('Motion_Planner')
-    testing_problem = 1 # this variable used to specify which problem from miniproject 2 we are trying to test
+    testing_problem = 3 # this variable used to specify which problem from miniproject 2 we are trying to test
     is_user_input = True
     is_traj_processed = False
     prev_traj = []
