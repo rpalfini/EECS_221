@@ -109,7 +109,7 @@ def status_msg(msg,is_first):
 
 def main():
     rospy.init_node('Motion_Planner')
-    testing_problem = 3 # this variable used to specify which problem from miniproject 2 we are trying to test
+    testing_problem = 2 # this variable used to specify which problem from miniproject 2 we are trying to test
     is_user_input = True # turns on user input for part 1 from command line
     is_traj_processed = False
     prev_traj = []
@@ -153,6 +153,7 @@ def main():
                 is_traj_processed = False
             
             start_goal_pub.publish(start_goal)
+            rospy.loginfo('i published a goal')
             r.sleep()
             # if not traj_node.data.data == [] and not traj_node.data.data == prev_traj:
             if is_new_traj_msg(traj_node,prev_traj):

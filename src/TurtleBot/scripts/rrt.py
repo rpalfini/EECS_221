@@ -156,13 +156,9 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
 
   if goal in points:
     print('Goal found, total vertex in graph:', len(points), 'total random points generated:', i)
-    # while is_path_None:
-    # print('try and find path again')
-    # path = searchPath(graph, start, [start])
     path = BFS(graph,start)
     if path is None:
        output_dbg_info('Is_None_search',graph=graph,goal=goal,path=path,points=points)
-    # path = searchPath(graph,start,[start])
     print('Showing resulting map')
     print('Final path:', path)
     print('The final path is made from:', len(path),'connected points')
@@ -176,32 +172,32 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
 
   return path,graph
 
-def searchPath(graph, point, path):
-  for i in graph:
-    # pid.debug_info('for i in graph',i=i,graph=graph,graph_type=type(graph)) if dbg else None
-    if point == i[0]:
-      # pid.debug_info('point == i[0]',point=point,i_0=i[0],i_type = type(i)) if dbg else None
-      p = i
+# def searchPath(graph, point, path):
+#   for i in graph:
+#     # pid.debug_info('for i in graph',i=i,graph=graph,graph_type=type(graph)) if dbg else None
+#     if point == i[0]:
+#       # pid.debug_info('point == i[0]',point=point,i_0=i[0],i_type = type(i)) if dbg else None
+#       p = i
 
-  if p[0] == graph[-1][0]:
+#   if p[0] == graph[-1][0]:
     
-      # pid.debug_info('searchPath',len_point=len(point),len_graph=len(graph))
-      # pid.debug_info('search_path_path',len_path=len(path),path=path)
-      # pid.debug_info('path type',ptype = type(path))
-    # rospy.loginfo('entered_early_return')
-    # output_dbg_info('searchPath_bad',graph=graph,point=point,path=path)
-    return path
+#       # pid.debug_info('searchPath',len_point=len(point),len_graph=len(graph))
+#       # pid.debug_info('search_path_path',len_path=len(path),path=path)
+#       # pid.debug_info('path type',ptype = type(path))
+#     # rospy.loginfo('entered_early_return')
+#     # output_dbg_info('searchPath_bad',graph=graph,point=point,path=path)
+#     return path
 
-  for link in p[1]:
-    path.append(link)
-    finalPath = searchPath(graph, link, path)
+#   for link in p[1]:
+#     path.append(link)
+#     finalPath = searchPath(graph, link, path)
 
-    if finalPath != None:
-    # if not finalPath is None:
-      rospy.loginfo('final path returned')
-      return finalPath
-    else:
-      path.pop()
+#     if finalPath != None:
+#     # if not finalPath is None:
+#       rospy.loginfo('final path returned')
+#       return finalPath
+#     else:
+#       path.pop()
 
 def addToGraph(graph, newPoints, point):
   if len(newPoints) > 1: # If there is anything to add to the graph
@@ -264,8 +260,29 @@ def findNearestPoint(points, point):
       best = (p[0], p[1], dist)
   return (best[0], best[1])
 
+def extend_obstacles(my_map, radius):
+    # Threshold the grayscale image to get the binary map
+    _, binary_map = cv2.threshold(my_map, 127, 255, cv2.THRESH_BINARY_INV)
+
+    # Calculate the structuring element size based on the radius
+    structuring_element_size = int(2 * radius + 1)
+
+    # Create a circular structuring element
+    structuring_element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (structuring_element_size, structuring_element_size))
+
+    # Dilate the binary map using the circular structuring element
+    dilated_map = cv2.dilate(binary_map, structuring_element)
+
+    # Invert the dilated map to get the extended obstacles
+    extended_obstacles = cv2.bitwise_not(dilated_map)
+
+    return my_map, binary_map, dilated_map, extended_obstacles
+
+
 def find_path_RRT(start,goal,my_map):
+  global robot_radius
   my_map = cv2.cvtColor(map_img(my_map), cv2.COLOR_GRAY2BGR)[::-1]
+  _,_,_,my_map = extend_obstacles(my_map,robot_radius)
   path,graph = rapidlyExploringRandomTree(my_map, start, goal, seed=None)
   return path,graph
 
@@ -303,6 +320,8 @@ def start_real_from_index(point_index,resolution,origin):
   return point_index*resolution + origin
 
 def main():
+  global robot_radius
+  robot_radius = 4
   rospy.init_node('RRT_node')
   # set up subscriptions
   map_node = SubscriberNode_Map('/map',OccupancyGrid,OccupancyGrid())
@@ -354,6 +373,7 @@ def main():
       rospy.loginfo('trajectory found and outputted')
       if plot_traj:
         rospy.loginfo('Plotting trajectory')
+        # plot_traj_found_extended_map(path)
         plot_traj_found(path)
 
     if not cur_start_goal == start_goal_node.data.data:
@@ -391,13 +411,50 @@ def convert_real_to_index(real,origin,resolution):
     return int(round(point/resolution))
 
 def plot_traj_found(path):
+  plot_both = True
+  if plot_both:
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1,2,1)
+    img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+    _,_,_,extended_map = extend_obstacles(img, robot_radius)
+    ax1.imshow(extended_map,cmap=cm.gray)
+    ax1.axis('off')
+    x_coords = [point[0] for point in path]
+    y_coords = [384-point[1] for point in path]
+    ax1.plot(x_coords,y_coords,color='red',linewidth=2)
+    ax1.set_title('Configuration Space')
+
+    ax2 = fig.add_subplot(1,2,2)
+    img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+    ax2.imshow(img,cmap=cm.gray)
+    ax2.axis('off')
+    x_coords = [point[0] for point in path]
+    y_coords = [384-point[1] for point in path]
+    ax2.plot(x_coords,y_coords,color='red',linewidth=2)
+    ax2.set_title('Map Space')
+    plt.show()
+
+  else:
+    img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+    plt.imshow(img,cmap=cm.gray)
+    plt.axis('off')
+    x_coords = [point[0] for point in path]
+    y_coords = [384-point[1] for point in path]
+    plt.plot(x_coords,y_coords,color='red',linewidth=2)
+    plt.show()
+
+def plot_traj_found_extended_map(path):
+  global robot_radius
+  plt.figure()
   img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
-  plt.imshow(img,cmap=cm.gray)
+  _,_,_,extended_map = extend_obstacles(img, robot_radius)
+  plt.imshow(extended_map,cmap=cm.gray)
   plt.axis('off')
   x_coords = [point[0] for point in path]
   y_coords = [384-point[1] for point in path]
   plt.plot(x_coords,y_coords,color='red',linewidth=2)
   plt.show()
+   
 
 def output_dbg_info(fheader,**kwargs):
   current_time = time.strftime("%Y%m%d%H%M%S")

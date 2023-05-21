@@ -89,14 +89,7 @@ class err_struct(object):
         self.int_err = new_int_err
 
     def accumulate_error(self,new_err):
-        # total_err = self.prev_int_err - new_err
-        # total_err = self.prev_int_err + new_err
         total_err = self.int_err + new_err
-        # total_err = self.int_err + 0.00000000000000001*new_err
-        # if new_err > 0:
-        #     rospy.loginfo('adding err')
-        # else:
-        #     rospy.loginfo('subtracting err')
         if total_err > self.error_max:
             total_err = self.error_max
             if self.is_first:
