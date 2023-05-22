@@ -321,7 +321,7 @@ def start_real_from_index(point_index,resolution,origin):
 
 def main():
   global robot_radius
-  robot_radius = 4
+  robot_radius = 3.7
   rospy.init_node('RRT_node')
   # set up subscriptions
   map_node = SubscriberNode_Map('/map',OccupancyGrid,OccupancyGrid())
@@ -331,7 +331,7 @@ def main():
   traj_pub = rospy.Publisher('/trajectory',Float64MultiArray,queue_size=5)
 
   # option
-  plot_traj = True
+  plot_traj = False
 
   # flags
   is_first = True
@@ -347,8 +347,9 @@ def main():
       cur_start_goal = start_goal_node.data.data
   rospy.loginfo('first start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
   # make sure map is loaded
+  is_first = True
   while not is_map_loaded and not rospy.is_shutdown():
-    rospy.loginfo('Waiting for map load')
+    is_first = mp.status_msg('Waiting for map load',is_first)
     if not map_node.current_map is None:
       is_map_loaded = True
 

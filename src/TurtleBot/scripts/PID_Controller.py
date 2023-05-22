@@ -189,7 +189,7 @@ def main():
 
     first_time = True
     controller_active = False
-    while not ref_node.is_received():
+    while not ref_node.is_received() and not rospy.is_shutdown():
         if first_time:
             rospy.loginfo('waiting for ref msg')
             first_time = False

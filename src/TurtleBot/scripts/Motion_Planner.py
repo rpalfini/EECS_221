@@ -109,7 +109,7 @@ def status_msg(msg,is_first):
 
 def main():
     rospy.init_node('Motion_Planner')
-    testing_problem = 2 # this variable used to specify which problem from miniproject 2 we are trying to test
+    testing_problem = 3 # this variable used to specify which problem from miniproject 2 we are trying to test
     is_user_input = True # turns on user input for part 1 from command line
     is_traj_processed = False
     prev_traj = []
@@ -178,8 +178,12 @@ def main():
                     log_rec_traj(target_pose_node.data)
                     prev_target_pose = target_pose_node.data.data
                     target_received = True
+                    rospy.loginfo('received following trajectory')
+                    rospy.loginfo(str(traj_node.data.data))
                     start_goal_msg = make_start_goal_msg(target_pose_node,pos_node)
                     start_goal_pub.publish(start_goal_msg)
+                    msg_count = 0
+                    is_traj_processed = False
                     r.sleep()
             is_first = True
 
@@ -192,9 +196,11 @@ def main():
                     rospy.loginfo(str(traj_node.data.data))
                     prev_traj = traj_node.data.data
                     is_traj_processed = True
-                    
+
             traj = traj_node.data.data
-            rospy.loginfo('sending waypoints to controller')
+            # goal_coord = target_pose_node.data.data
+            # if not is_goal_state(pos_node,):
+            rospy.loginfo('sending waypoints to controller, total waypoints = %d' % (len(range(0,len(traj)-1,2)))) 
             for ii in range(0,len(traj)-1,2):
                 next_point = (traj[ii],traj[ii+1])
                 cur_location = get_cur_xy(pos_node)
@@ -206,6 +212,8 @@ def main():
                     pub_ref_pose.publish(ref_pose)
                 rospy.loginfo('robot arrived at location (%.2f,%.2f) with angle %.2f radians' % (next_point[0],next_point[1],next_angle))
             rospy.loginfo('robot arrived at goal')
+            target_received = False
+
             
 
 
