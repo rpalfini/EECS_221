@@ -2,7 +2,7 @@
 <package format="2">
   <name>TurtleBot</name>
   <version>0.0.0</version>
-  <description>The TurtleBot package for HW2 EECS 221 at UCI</description>
+  <description>The TurtleBot package for MiniProject 2 and 3 EECS 221 at UCI</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
@@ -10,7 +10,8 @@
   <maintainer email="rpalfini@uci.edu">Robert Palfini</maintainer>
 
 
-  <!-- One license tag required, multiple allowed, one license per tag -->
+  <!-- One license tag required, multiple allowed, import pickle
+import timeone license per tag -->
   <!-- Commonly used license strings: -->
   <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
   <license>MIT</license>
@@ -86,6 +87,6 @@
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->
-
+    <launch_ros package='TurtleBot' />
   </export>
 </package>
