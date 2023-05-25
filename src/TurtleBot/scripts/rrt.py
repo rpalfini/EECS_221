@@ -331,7 +331,7 @@ def main():
   traj_pub = rospy.Publisher('/trajectory',Float64MultiArray,queue_size=5)
 
   # option
-  plot_traj = False
+  plot_traj = True
 
   # flags
   is_first = True
@@ -417,6 +417,7 @@ def plot_traj_found(path):
     fig = plt.figure()
     ax1 = fig.add_subplot(1,2,1)
     img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+    # img = imread('/my_map.pgm')
     _,_,_,extended_map = extend_obstacles(img, robot_radius)
     ax1.imshow(extended_map,cmap=cm.gray)
     ax1.axis('off')
