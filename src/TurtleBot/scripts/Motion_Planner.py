@@ -89,6 +89,7 @@ def get_cur_xy(pos_node):
     return (x_current,y_current)
 
 def is_new_traj_msg(data_node,prev_traj):
+    #TODO this doesnt block when data_node.data.data == [] and not sure why
     if not data_node.data.data == [] and not data_node.data.data == prev_traj:
         return True
     else:
@@ -109,7 +110,7 @@ def status_msg(msg,is_first):
 
 def main():
     rospy.init_node('Motion_Planner')
-    testing_problem = 3 # this variable used to specify which problem from miniproject 2 we are trying to test
+    testing_problem = 1 # this variable used to specify which problem from miniproject 2 we are trying to test
     is_user_input = True # turns on user input for part 1 from command line
     is_traj_processed = False
     prev_traj = []
@@ -178,8 +179,8 @@ def main():
                     log_rec_traj(target_pose_node.data)
                     prev_target_pose = target_pose_node.data.data
                     target_received = True
-                    rospy.loginfo('received following trajectory')
-                    rospy.loginfo(str(traj_node.data.data))
+                    rospy.loginfo('received following target goal')
+                    rospy.loginfo(str(target_pose_node.data.data))
                     start_goal_msg = make_start_goal_msg(target_pose_node,pos_node)
                     start_goal_pub.publish(start_goal_msg)
                     msg_count = 0

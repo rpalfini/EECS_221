@@ -24,9 +24,11 @@ class SubscriberNode_Map(pid.SubscriberNode):
   def __init__(self, topic, msg, msg_object):
     super(SubscriberNode_Map,self).__init__(topic, msg, msg_object)
     self.current_map = None
+    self.prev_map = None
 
   def callback(self, data):
     super(SubscriberNode_Map,self).callback(data)
+    self.prev_map = self.current_map
     self.current_map = self.convert_map_2D(data)
 
   def convert_map_2D(self,data):
@@ -108,7 +110,7 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
   maxY = min(goal[1] + 5 * STEP_DISTANCE, len(img) - 1)
 
   i = 0
-  while (goal not in points) and (len(points) < MAX_NUM_VERT):
+  while (goal not in points) and (len(points) < MAX_NUM_VERT) and not rospy.is_shutdown():
     # if dbg:
     #   rospy.loginfo('entered goal not found loop')
     # if (i % 100) == 0:
@@ -281,8 +283,10 @@ def extend_obstacles(my_map, radius):
 
 def find_path_RRT(start,goal,my_map):
   global robot_radius
+  global use_dilated_map
   my_map = cv2.cvtColor(map_img(my_map), cv2.COLOR_GRAY2BGR)[::-1]
-  _,_,_,my_map = extend_obstacles(my_map,robot_radius)
+  if use_dilated_map:
+    _,_,_,my_map = extend_obstacles(my_map,robot_radius)
   path,graph = rapidlyExploringRandomTree(my_map, start, goal, seed=None)
   return path,graph
 
@@ -321,6 +325,7 @@ def start_real_from_index(point_index,resolution,origin):
 
 def main():
   global robot_radius
+  global use_dilated_map
   robot_radius = 3.7
   rospy.init_node('RRT_node')
   # set up subscriptions
@@ -332,6 +337,7 @@ def main():
 
   # option
   plot_traj = True
+  use_dilated_map = True
 
   # flags
   is_first = True
