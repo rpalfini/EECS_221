@@ -26,9 +26,9 @@ def main_swim():
     move_cmd = Twist()
 
     # Controller gain
-    Kp_x = 1.5
-    Kp_less = 1
-    Kp_lesser = 0.5
+    Kp_x = 50
+    Kp_less = 50
+    Kp_lesser = 50
     Kp_z = 4
 
     while not rospy.is_shutdown():

@@ -95,11 +95,10 @@ def calc_error(cur_state,target):
     # rospy.loginfo('dot product = %.2f' % dot_product)
     if dot_product > 0:
         err_pos = -err_pos
-        # the following section is to enable cart to go backwards to goal points if they are behind them
         if theta >= 0:
-            theta = theta - math.pi
+            theta -= math.pi
         else:
-            theta = theta + math.pi
+            theta += math.pi
     
     ref_angle = math.atan2(y_err,x_err)
     err_ang = calc_ang_error(theta, ref_angle)
