@@ -1,7 +1,14 @@
 <launch>
+
+  <arg name="map_file" default="$(find TurtleBot)/../../my_map.yaml"/>
+    
+    <node name="map_server_node" pkg="map_server" type="map_server" output="screen" args="$(arg map_file)">
+    </node>
+
   <!-- Launch PID_Controller node -->
   <node name="pid_controller_node" pkg="TurtleBot" type="PID_Controller.py" output="screen">
     <!-- Add any arguments or parameters required for the PID_Controller node -->
+    <param name="check_ref" type="bool" value="False" />
   </node>
 
   <!-- Launch RRT node -->
@@ -14,5 +21,7 @@
   <node name="motion_planner_node" pkg="TurtleBot" type="Motion_Planner.py" output="screen">
     <!-- Add any arguments or parameters required for the Motion_Planner node -->
     <param name="test_prob" type="int" value="3" />
+    <param name="mode" type="int" value="1" />
+    
   </node>
 </launch>
