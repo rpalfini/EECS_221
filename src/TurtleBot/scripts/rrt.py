@@ -13,6 +13,7 @@ from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Float64MultiArray
 import pickle
 import time
+import os
 
 dbg = True
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
@@ -118,7 +119,7 @@ def rapidlyExploringRandomTree(img, start, goal, seed=None):
 
     if (len(points) % hundreds) == 0:
       print(len(points), 'vertex generated')
-      hundreds = hundreds + 100
+      # hundreds = hundreds + 100
     if len(points) == 1:
        print('point length is 1, if message repeats, that means invalid start_goal location sent to rrt')
     while(occupied):
@@ -323,11 +324,31 @@ def get_index_from_coordinates(start_goal_data,map_node):
 def start_real_from_index(point_index,resolution,origin):
   return point_index*resolution + origin
 
+def arg_parse():
+    args = {}
+    args['plot_traj'] = rospy.get_param('~plot_traj',False)
+    print('my boolean param %s' % (args['plot_traj']))
+    args['use_dilated_map'] = rospy.get_param('~use_dilated_map',True)
+    default_map = os.path.dirname(os.path.abspath(__file__)) + "/../../../my_map.pgm"
+    print(default_map)
+    args['image_path'] = rospy.get_param('~image_path',default_map)
+    args['robot_radius'] = rospy.get_param('~robot_radius',3.7)
+    return args
+
 def main():
   global robot_radius
   global use_dilated_map
-  robot_radius = 3.7
+
+
   rospy.init_node('RRT_node')
+
+  # load args
+  args = arg_parse()
+  image_path = args['image_path']
+  robot_radius = args['robot_radius']
+
+
+
   # set up subscriptions
   map_node = SubscriberNode_Map('/map',OccupancyGrid,OccupancyGrid())
   start_goal_node = pid.SubscriberNode('/start_goal',Float64MultiArray,Float64MultiArray())
@@ -336,8 +357,8 @@ def main():
   traj_pub = rospy.Publisher('/trajectory',Float64MultiArray,queue_size=5)
 
   # option
-  plot_traj = True
-  use_dilated_map = True
+  plot_traj = args['plot_traj'] 
+  use_dilated_map = args['use_dilated_map']
 
   # flags
   is_first = True
@@ -359,6 +380,7 @@ def main():
     if not map_node.current_map is None:
       is_map_loaded = True
 
+  is_first = True
   while not rospy.is_shutdown():
     if not is_traj_computed:
       rospy.loginfo('searching for trajectory')
@@ -381,7 +403,7 @@ def main():
       if plot_traj:
         rospy.loginfo('Plotting trajectory')
         # plot_traj_found_extended_map(path)
-        plot_traj_found(path)
+        plot_traj_found(path,image_path)
 
     if not cur_start_goal == start_goal_node.data.data:
       rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
@@ -417,12 +439,15 @@ def convert_real_to_index(real,origin,resolution):
     point = abs(real-origin)
     return int(round(point/resolution))
 
-def plot_traj_found(path):
+def plot_traj_found(path,image_path):
   plot_both = True
   if plot_both:
+    # plt.clf()
+    # plt.pause(0.5)
     fig = plt.figure()
+    # plt.ion()
     ax1 = fig.add_subplot(1,2,1)
-    img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+    img = imread(image_path)
     # img = imread('/my_map.pgm')
     _,_,_,extended_map = extend_obstacles(img, robot_radius)
     ax1.imshow(extended_map,cmap=cm.gray)
@@ -433,7 +458,7 @@ def plot_traj_found(path):
     ax1.set_title('Configuration Space')
 
     ax2 = fig.add_subplot(1,2,2)
-    img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+    img = imread(image_path)
     ax2.imshow(img,cmap=cm.gray)
     ax2.axis('off')
     x_coords = [point[0] for point in path]
@@ -443,7 +468,7 @@ def plot_traj_found(path):
     plt.show()
 
   else:
-    img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+    img = imread(image_path)
     plt.imshow(img,cmap=cm.gray)
     plt.axis('off')
     x_coords = [point[0] for point in path]
@@ -451,10 +476,10 @@ def plot_traj_found(path):
     plt.plot(x_coords,y_coords,color='red',linewidth=2)
     plt.show()
 
-def plot_traj_found_extended_map(path):
+def plot_traj_found_extended_map(path,image_path):
   global robot_radius
   plt.figure()
-  img = imread('/home/eecs195/Palfini_Robert_ws/my_map.pgm')
+  img = imread(image_path)
   _,_,_,extended_map = extend_obstacles(img, robot_radius)
   plt.imshow(extended_map,cmap=cm.gray)
   plt.axis('off')

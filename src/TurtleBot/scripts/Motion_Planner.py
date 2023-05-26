@@ -106,22 +106,29 @@ def status_msg(msg,is_first):
     if is_first:
         rospy.loginfo(msg)
     return False #use output to turn off is_first
-    
+
+def arg_parse():
+    args = {}
+    args['test_prob'] = rospy.get_param('~test_prob',3)
+    args['mode'] = rospy.get_param('~mode',0)
+    return args
 
 def main():
     rospy.init_node('Motion_Planner')
-    testing_problem = 1 # this variable used to specify which problem from miniproject 2 we are trying to test
+    args = arg_parse()
+    testing_problem = args['test_prob'] # this variable used to specify which problem from miniproject 2 we are trying to test
     is_user_input = True # turns on user input for part 1 from command line
     is_traj_processed = False
     prev_traj = []
     prev_target_pose = []
     target_received = False # flag 
     cur_pose_received = False
-    mode = 0 # mode to use for part 3
+    mode = args['mode'] # mode to use for part 3
     msg_count = 1
     r = rospy.Rate(10)
     cur_location = 0
     is_first = True #flag for displaying status messages
+    also_is_first = True
     
     if testing_problem == 1: #testing PID Controller
         pos_node = pid.SubscriberNode(topic='/gazebo/model_states',msg=pid.ModelStates,msg_object=pid.ModelStates())
@@ -154,7 +161,7 @@ def main():
                 is_traj_processed = False
             
             start_goal_pub.publish(start_goal)
-            rospy.loginfo('i published a goal')
+            also_is_first = status_msg('goal published, waiting for trajectory',also_is_first)
             r.sleep()
             # if not traj_node.data.data == [] and not traj_node.data.data == prev_traj:
             if is_new_traj_msg(traj_node,prev_traj):

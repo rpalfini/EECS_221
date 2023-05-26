@@ -1,0 +1,12 @@
+<launch>
+  <!-- Launch PID_Controller node -->
+  <node name="pid_controller_node" pkg="TurtleBot" type="PID_Controller.py" output="screen">
+    <!-- Add any arguments or parameters required for the PID_Controller node -->
+  </node>
+
+  <!-- Launch Motion_Planner node -->
+  <node name="motion_planner_node" pkg="TurtleBot" type="Motion_Planner.py" output="screen">
+    <!-- Add any arguments or parameters required for the Motion_Planner node -->
+    <param name="test_prob" type="int" value="1" />
+  </node>
+</launch>

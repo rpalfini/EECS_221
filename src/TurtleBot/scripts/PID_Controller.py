@@ -38,6 +38,7 @@ class SubscriberNode_Repeat(SubscriberNode):
     def callback(self, data):
         super(SubscriberNode_Repeat, self).callback(data)
         self.repeat_topic_node.publish(data)
+        
 class SubscriberNodeUpdateGains(SubscriberNode):
     def __init__(self, topic, msg,msg_object, gains_obj):
         super(SubscriberNodeUpdateGains, self).__init__(topic, msg, msg_object)
