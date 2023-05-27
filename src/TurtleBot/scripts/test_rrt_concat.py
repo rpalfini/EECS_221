@@ -67,9 +67,9 @@ if __name__ == "__main__":
         b = 300
         print('(%d,%d) has value %d' % (a,b,map_node.current_map[a,b]))
     elif test_num == 5:
-        print(rrt.start_real_from_index(70,resolution,x_origin))
-        print(rrt.start_real_from_index(190,resolution,y_origin))
-        print(rrt.start_real_from_index(300,resolution,x_origin))
-        print(rrt.start_real_from_index(190,resolution,y_origin))
+        print(rrt.convert_index_to_real(70,resolution,x_origin))
+        print(rrt.convert_index_to_real(190,resolution,y_origin))
+        print(rrt.convert_index_to_real(300,resolution,x_origin))
+        print(rrt.convert_index_to_real(190,resolution,y_origin))
     elif test_num == 6:
         

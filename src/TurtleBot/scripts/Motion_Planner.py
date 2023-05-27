@@ -161,7 +161,7 @@ def main():
                 is_traj_processed = False
             
             start_goal_pub.publish(start_goal)
-            also_is_first = status_msg('goal published, waiting for trajectory',also_is_first)
+            also_is_first = status_msg('start_goal published to rrt, waiting for trajectory',also_is_first)
             r.sleep()
             # if not traj_node.data.data == [] and not traj_node.data.data == prev_traj:
             if is_new_traj_msg(traj_node,prev_traj):

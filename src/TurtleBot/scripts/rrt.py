@@ -302,13 +302,16 @@ def map_img(arr):
     im = np.array(disp_map, dtype = np.uint8)
     return im[::-1]
 
+def get_start_goal(start_goal_data):
+  start = start_goal_data[0:2]
+  goal = start_goal_data[2:4]
+  return start, goal
+
 def get_index_from_coordinates(start_goal_data,map_node):
-  
   # start_goal_data should be Float64MultiArray of length 4
   if not len(start_goal_data) == 4:
     raise Exception('expecting length of data to be 4 but got %d' % (len(start_goal_data)))
-  start_real = start_goal_data[0:2]
-  goal_real = start_goal_data[2:4]
+  start_real,goal_real = get_start_goal(start_goal_data)
   x_origin = map_node.data.info.origin.position.x
   y_origin = map_node.data.info.origin.position.y
   resolution = map_node.data.info.resolution
@@ -321,23 +324,32 @@ def get_index_from_coordinates(start_goal_data,map_node):
   start_goal_index = (x_start_index,y_start_index,x_goal_index,y_goal_index)
   return start_goal_index
 
-def start_real_from_index(point_index,resolution,origin):
-  return point_index*resolution + origin
+def check_if_valid_input(start_goal_data,map_node):
+  start_goal_index = get_index_from_coordinates(start_goal_data,map_node)
+  start_index, goal_index = get_start_goal(start_goal_index)
+  if check_cell_open(start_index,map_node) and check_cell_open(goal_index,map_node):
+     return True
+  else:
+     return False
 
-def check_if_valid_input():
-   pass
+def check_cell_open(cell,map_node):
+  # checks if a cell is open or occupied/unknown.  cell should be two numbers [x,y] for the map pixel index
+  if map_node.current_map[cell[0]][cell[1]] == 0:
+     return True
+  else:
+     return False
 
 def arg_parse():
-    args = {}
-    args['plot_traj'] = rospy.get_param('~plot_traj',False)
-    # print('my boolean param %s' % (args['plot_traj']))
-    args['use_dilated_map'] = rospy.get_param('~use_dilated_map',True)
-    default_map = os.path.dirname(os.path.abspath(__file__)) + "/../../../my_map.pgm"
-    print('loading map from: %s' % (default_map))
-    args['image_path'] = rospy.get_param('~image_path',default_map)
-    args['robot_radius'] = rospy.get_param('~robot_radius',3.7)
+  args = {}
+  args['plot_traj'] = rospy.get_param('~plot_traj',False)
+  # print('my boolean param %s' % (args['plot_traj']))
+  args['use_dilated_map'] = rospy.get_param('~use_dilated_map',True)
+  default_map = os.path.dirname(os.path.abspath(__file__)) + "/../../../my_map.pgm"
+  print('loading map from: %s' % (default_map))
+  args['image_path'] = rospy.get_param('~image_path',default_map)
+  args['robot_radius'] = rospy.get_param('~robot_radius',3.7)
     
-    return args
+  return args
 
 def main():
   global robot_radius
@@ -371,14 +383,14 @@ def main():
   while not is_first_point_rec and not rospy.is_shutdown():
     is_first = mp.status_msg('Waiting for first start_goal',is_first)
     if not start_goal_node.data.data == []:
-      if check_if_valid_input(start_goal_node.data.data):
+      if check_if_valid_input(start_goal_node.data.data,map_node):
         is_first_point_rec = True
         cur_start_goal = start_goal_node.data.data
       else:
         if start_goal_node.data.data != last_rec_point:
           rospy.loginfo('invalid start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3]))
           last_rec_point = start_goal_node.data.data
-          
+
   rospy.loginfo('first start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
   # make sure map is loaded
   is_first = True
