@@ -32,7 +32,7 @@ def plot_map(map_data):
     # expects map_data as np array
     # map_data = np.where(map_data == -1,50,map_data) #distinguishes 
     # map_data = adjust_map_colors(map_data)
-    map_data = rrt.map_img(map_data)
+    # map_data = rrt.map_img(map_data)
     plt.imshow(map_data,cmap='gray')
     # plt.show()
 
@@ -61,9 +61,9 @@ def main():
         rospy.loginfo('map updated')
         num_unknown = np.count_nonzero(map_node.current_map == -1)
         total_cells = map_node.data.info.height*map_node.data.info.width
-        percent_known = float(num_unknown)/total_cells
-        print('%% known = %.7f' % (percent_known))
-        print('%d known out of %d' % (num_unknown,total_cells))
+        percent_unknown = float(num_unknown)/total_cells
+        print('%% unknown = %.7f' % percent_unknown)
+        print('%d unknown out of %d' % (num_unknown,total_cells))
         plt.pause(0.2)
         plt.show()
     

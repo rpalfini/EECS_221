@@ -334,7 +334,7 @@ def check_if_valid_input(start_goal_data,map_node):
 
 def check_cell_open(cell,map_node):
   # checks if a cell is open or occupied/unknown.  cell should be two numbers [x,y] for the map pixel index
-  if map_node.current_map[cell[0]][cell[1]] == 0:
+  if map_node.current_map[cell[0]][cell[1]] == 100:
      return True
   else:
      return False
@@ -345,7 +345,7 @@ def arg_parse():
   # print('my boolean param %s' % (args['plot_traj']))
   args['use_dilated_map'] = rospy.get_param('~use_dilated_map',True)
   default_map = os.path.dirname(os.path.abspath(__file__)) + "/../../../my_map.pgm"
-  print('loading map from: %s' % (default_map))
+  # print('loading map from: %s' % (default_map))
   args['image_path'] = rospy.get_param('~image_path',default_map)
   args['robot_radius'] = rospy.get_param('~robot_radius',3.7)
     
@@ -379,7 +379,15 @@ def main():
   is_first_point_rec = False
   last_rec_point = []
   is_map_loaded = False
+
+  # make sure map is loaded
+  while not is_map_loaded and not rospy.is_shutdown():
+    is_first = mp.status_msg('Waiting for map load',is_first)
+    if not map_node.current_map is None:
+      is_map_loaded = True
+
   # flag to make sure RRT isn't activated until a valid start goal is received
+  is_first = True
   while not is_first_point_rec and not rospy.is_shutdown():
     is_first = mp.status_msg('Waiting for first start_goal',is_first)
     if not start_goal_node.data.data == []:
@@ -395,12 +403,6 @@ def main():
           last_rec_point = start_goal_node.data.data
 
   rospy.loginfo('first start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
-  # make sure map is loaded
-  is_first = True
-  while not is_map_loaded and not rospy.is_shutdown():
-    is_first = mp.status_msg('Waiting for map load',is_first)
-    if not map_node.current_map is None:
-      is_map_loaded = True
 
   is_first = True
   while not rospy.is_shutdown():
