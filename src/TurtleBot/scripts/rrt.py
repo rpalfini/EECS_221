@@ -324,21 +324,24 @@ def get_index_from_coordinates(start_goal_data,map_node):
 def start_real_from_index(point_index,resolution,origin):
   return point_index*resolution + origin
 
+def check_if_valid_input():
+   pass
+
 def arg_parse():
     args = {}
     args['plot_traj'] = rospy.get_param('~plot_traj',False)
-    print('my boolean param %s' % (args['plot_traj']))
+    # print('my boolean param %s' % (args['plot_traj']))
     args['use_dilated_map'] = rospy.get_param('~use_dilated_map',True)
     default_map = os.path.dirname(os.path.abspath(__file__)) + "/../../../my_map.pgm"
-    print(default_map)
+    print('loading map from: %s' % (default_map))
     args['image_path'] = rospy.get_param('~image_path',default_map)
     args['robot_radius'] = rospy.get_param('~robot_radius',3.7)
+    
     return args
 
 def main():
   global robot_radius
   global use_dilated_map
-
 
   rospy.init_node('RRT_node')
 
@@ -346,8 +349,6 @@ def main():
   args = arg_parse()
   image_path = args['image_path']
   robot_radius = args['robot_radius']
-
-
 
   # set up subscriptions
   map_node = SubscriberNode_Map('/map',OccupancyGrid,OccupancyGrid())
@@ -364,14 +365,20 @@ def main():
   is_first = True
   is_traj_computed = False
   is_first_point_rec = False
+  last_rec_point = []
   is_map_loaded = False
-  # flag to make sure RRT isn't activated until a start goal is received
+  # flag to make sure RRT isn't activated until a valid start goal is received
   while not is_first_point_rec and not rospy.is_shutdown():
     is_first = mp.status_msg('Waiting for first start_goal',is_first)
     if not start_goal_node.data.data == []:
-      rospy.loginfo('Waiting for first start_goal')
-      is_first_point_rec = True
-      cur_start_goal = start_goal_node.data.data
+      if check_if_valid_input(start_goal_node.data.data):
+        is_first_point_rec = True
+        cur_start_goal = start_goal_node.data.data
+      else:
+        if start_goal_node.data.data != last_rec_point:
+          rospy.loginfo('invalid start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3]))
+          last_rec_point = start_goal_node.data.data
+          
   rospy.loginfo('first start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
   # make sure map is loaded
   is_first = True
@@ -403,7 +410,7 @@ def main():
       if plot_traj:
         rospy.loginfo('Plotting trajectory')
         # plot_traj_found_extended_map(path)
-        plot_traj_found(path,image_path)
+        plot_traj_found(path,image_path,map_node.data.info)
 
     if not cur_start_goal == start_goal_node.data.data:
       rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
@@ -439,7 +446,8 @@ def convert_real_to_index(real,origin,resolution):
     point = abs(real-origin)
     return int(round(point/resolution))
 
-def plot_traj_found(path,image_path):
+def plot_traj_found(path,image_path,map_info):
+  height = map_info.height
   plot_both = True
   if plot_both:
     # plt.clf()
@@ -453,7 +461,7 @@ def plot_traj_found(path,image_path):
     ax1.imshow(extended_map,cmap=cm.gray)
     ax1.axis('off')
     x_coords = [point[0] for point in path]
-    y_coords = [384-point[1] for point in path]
+    y_coords = [height-point[1] for point in path]
     ax1.plot(x_coords,y_coords,color='red',linewidth=2)
     ax1.set_title('Configuration Space')
 
@@ -462,7 +470,7 @@ def plot_traj_found(path,image_path):
     ax2.imshow(img,cmap=cm.gray)
     ax2.axis('off')
     x_coords = [point[0] for point in path]
-    y_coords = [384-point[1] for point in path]
+    y_coords = [height-point[1] for point in path]
     ax2.plot(x_coords,y_coords,color='red',linewidth=2)
     ax2.set_title('Map Space')
     plt.show()

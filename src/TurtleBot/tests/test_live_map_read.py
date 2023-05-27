@@ -23,7 +23,7 @@ import rrt
 
 def adjust_map_colors(map_in):
     # replaces the map colors with easier to see values
-    # map_out = np.where(map_in == 100,0,map_in)
+    # map_out = np.where(map_in == 100,0, map_in)
     map_out = np.where(map_in == 0, 100, np.where(map_in == 100, 0, np.where(map_in == -1, 50, map_in)))
     return map_out
 
@@ -31,7 +31,8 @@ def adjust_map_colors(map_in):
 def plot_map(map_data):
     # expects map_data as np array
     # map_data = np.where(map_data == -1,50,map_data) #distinguishes 
-    map_data = adjust_map_colors(map_data)
+    # map_data = adjust_map_colors(map_data)
+    map_data = rrt.map_img(map_data)
     plt.imshow(map_data,cmap='gray')
     # plt.show()
 
@@ -58,7 +59,12 @@ def main():
         plot_map(map_node.current_map)
         
         rospy.loginfo('map updated')
-        plt.pause(0.5)
+        num_unknown = np.count_nonzero(map_node.current_map == -1)
+        total_cells = map_node.data.info.height*map_node.data.info.width
+        percent_known = float(num_unknown)/total_cells
+        print('%% known = %.7f' % (percent_known))
+        print('%d known out of %d' % (num_unknown,total_cells))
+        plt.pause(0.2)
         plt.show()
     
 
