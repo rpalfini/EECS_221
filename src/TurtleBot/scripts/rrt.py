@@ -388,7 +388,10 @@ def main():
         cur_start_goal = start_goal_node.data.data
       else:
         if start_goal_node.data.data != last_rec_point:
-          rospy.loginfo('invalid start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3]))
+          index_coords = get_index_from_coordinates(start_goal_node.data.data,map_node)
+          start_cell_val = map_node.current_map[index_coords[0],index_coords[1]]
+          end_cell_val = map_node.current_map[index_coords[2],index_coords[3]]
+          rospy.loginfo('invalid start_goal received (%.2f,%.2f)_(%.2f,%.2f) due to cell values %d and %d' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],start_cell_val,end_cell_val))
           last_rec_point = start_goal_node.data.data
 
   rospy.loginfo('first start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
