@@ -334,10 +334,19 @@ def check_if_valid_input(start_goal_data,map_node):
 
 def check_cell_open(cell,map_node):
   # checks if a cell is open or occupied/unknown.  cell should be two numbers [x,y] for the map pixel index
-  if map_node.current_map[cell[0]][cell[1]] == 100:
+  # if map_node.current_map[cell[0]][cell[1]] == 100:
+  if query_map_cell_value(map_node,cell[0],cell[1]) == 0:
      return True
   else:
      return False
+
+def query_map_cell_value(map_node,x,y,is_index = True):
+  if is_index:
+    return map_node.current_map[y][x]
+  else:
+    x_ind = convert_real_to_index(x,map_node.data.info.origin.position.x,map_node.data.info.resolution)
+    y_ind = convert_real_to_index(y,map_node.data.info.origin.position.y,map_node.data.info.resolution)
+    return map_node.current_map[y_ind][x_ind]
 
 def arg_parse():
   args = {}
@@ -389,6 +398,7 @@ def main():
     is_first = mp.status_msg('Waiting for first start_goal',is_first)
     if not start_goal_node.data.data == []:
       if check_if_valid_input(start_goal_node.data.data,map_node):
+      # if True:
         is_first_point_rec = True
         cur_start_goal = start_goal_node.data.data
       else:
