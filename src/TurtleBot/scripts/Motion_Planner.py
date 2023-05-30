@@ -17,11 +17,14 @@ def request_and_create():
 def request_mode():
     return util.request_number('mode',bounds=(0,2))
 
-def request_ref_point():
+def request_ref_point(request_theta=True):
     x = util.request_number('x',is_bounds=False)
     y = util.request_number('y',is_bounds=False)
-    theta = util.request_number('theta (radians)',bounds=(-3.14,3.14))
-    return (x,y,theta)
+    if request_theta:
+        theta = util.request_number('theta (radians)',bounds=(-3.14,3.14))
+        return (x,y,theta)
+    else:
+        return (x,y)
 
 def create_ref_msg(mode,ref_tuple): # also used in testing problem 3
     target_pose = Reference_Pose()

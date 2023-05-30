@@ -381,10 +381,7 @@ def main():
   is_map_loaded = False
 
   # make sure map is loaded
-  while not is_map_loaded and not rospy.is_shutdown():
-    is_first = mp.status_msg('Waiting for map load',is_first)
-    if not map_node.current_map is None:
-      is_map_loaded = True
+  load_map(map_node, is_first, is_map_loaded)
 
   # flag to make sure RRT isn't activated until a valid start goal is received
   is_first = True
@@ -433,6 +430,13 @@ def main():
       rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
       cur_start_goal = start_goal_node.data.data
       is_traj_computed = False
+
+def load_map(map_node, is_first=True, is_map_loaded=False):
+    while not is_map_loaded and not rospy.is_shutdown():
+      is_first = mp.status_msg('Waiting for map load',is_first)
+      if not map_node.current_map is None:
+        is_map_loaded = True
+    rospy.loginfo('Map Loaded')
 
 def create_path_msg(path,map_info,convert_to_real=True):
   path_msg = Float64MultiArray()

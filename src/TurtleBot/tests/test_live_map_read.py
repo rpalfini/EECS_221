@@ -32,7 +32,7 @@ def plot_map(map_data):
     # expects map_data as np array
     # map_data = np.where(map_data == -1,50,map_data) #distinguishes 
     # map_data = adjust_map_colors(map_data)
-    # map_data = rrt.map_img(map_data)
+    map_data = rrt.map_img(map_data)
     plt.imshow(map_data,cmap='gray')
     # plt.show()
 
