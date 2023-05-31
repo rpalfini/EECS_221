@@ -17,7 +17,6 @@ import os
 
 dbg = True
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
-MAX_NUM_VERT = 70000 # Maximum number of vertex in the graph
 STEP_DISTANCE = 20 # Maximum distance between two vertex
 SEED = None # For random numbers
 
@@ -94,6 +93,7 @@ def BFS(graph,start):
     return path  
 
 def rapidlyExploringRandomTree(img, start, goal, seed=None):
+  global MAX_NUM_VERT
   rospy.loginfo('entered rapidlyExploringRandomTree')
   hundreds = 1000
   random.seed(seed)
@@ -357,12 +357,14 @@ def arg_parse():
   # print('loading map from: %s' % (default_map))
   args['image_path'] = rospy.get_param('~image_path',default_map)
   args['robot_radius'] = rospy.get_param('~robot_radius',3.7)
+  args['max_num_vert'] = rospy.get_param('~max_num_vert',70000) # Maximum number of vertex in the graph)
     
   return args
 
 def main():
   global robot_radius
   global use_dilated_map
+  global MAX_NUM_VERT
 
   rospy.init_node('RRT_node')
 
@@ -370,7 +372,7 @@ def main():
   args = arg_parse()
   image_path = args['image_path']
   robot_radius = args['robot_radius']
-
+  MAX_NUM_VERT = args['max_num_vert'] # Maximum number of vertex in the graph
   # set up subscriptions
   map_node = SubscriberNode_Map('/map',OccupancyGrid,OccupancyGrid())
   start_goal_node = pid.SubscriberNode('/start_goal',Float64MultiArray,Float64MultiArray())
