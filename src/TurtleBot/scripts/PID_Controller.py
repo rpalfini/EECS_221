@@ -5,7 +5,7 @@ from geometry_msgs.msg import Twist, Point, Quaternion, Pose
 from gazebo_msgs.msg import ModelStates
 # from turtlesim.msg import Pose
 from TurtleBot.msg import Reference_Pose, PID_Gains, err_vals, cur_pose
-import swim_to_goal as util
+import swim_to_goal2 as util
 from tf.transformations import euler_from_quaternion
 import math
 import numpy as np
@@ -167,7 +167,7 @@ def main():
     # test_mode specifies if gains are hard coded or received from topic
     args = arg_parse()
     test_mode = args['enable_gain_topics']
-    check_ref = args['check_ref']
+    check_ref = args['check_ref'] #TODO: implement this
     # setup publisher
     pub = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
     ang_pub_err = rospy.Publisher('/ang_err', err_vals, queue_size=5)

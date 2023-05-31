@@ -14,5 +14,6 @@
   <node name="motion_planner_node" pkg="TurtleBot" type="Motion_Planner.py" output="screen">
     <!-- Add any arguments or parameters required for the Motion_Planner node -->
     <param name="test_prob" type="int" value="3" />
+    <param name="mode" type="int" value="1" />
   </node>
 </launch>

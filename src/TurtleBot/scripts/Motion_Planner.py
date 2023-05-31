@@ -3,7 +3,7 @@
 import rospy
 import math
 from TurtleBot.msg import Reference_Pose, PID_Gains
-import swim_to_goal as util
+import swim_to_goal2 as util
 import PID_Controller as pid
 from std_msgs.msg import Float64MultiArray
 from gazebo_msgs.msg import ModelStates
@@ -175,12 +175,7 @@ def main():
                 is_traj_processed = True
 
         elif testing_problem == 3:
-            while not cur_pose_received and not rospy.is_shutdown():
-                is_first = status_msg('waiting for model pose',is_first)
-                # pid.debug_info('pos_node.isreceived()',is_received=pos_node.is_received())
-                if pos_node.is_received():
-                    cur_pose_received = True
-            is_first = True
+            wait_for_model_pose(cur_pose_received, pos_node)
 
             while not target_received and not rospy.is_shutdown():
                 is_first = status_msg('waiting for target location',is_first)
@@ -188,14 +183,18 @@ def main():
                 if is_new_traj_msg(target_pose_node,prev_target_pose):
                     log_rec_traj(target_pose_node.data)
                     prev_target_pose = target_pose_node.data.data
-                    target_received = True
                     rospy.loginfo('received following target goal')
                     rospy.loginfo(str(target_pose_node.data.data))
-                    start_goal_msg = make_start_goal_msg(target_pose_node,pos_node)
-                    start_goal_pub.publish(start_goal_msg)
-                    msg_count = 0
-                    is_traj_processed = False
-                    r.sleep()
+                    input_pose = create_ref_msg(mode=mode,ref_tuple=(target_pose_node.data.data[0],target_pose_node.data.data[1],0)) # only using this for the format to reuse methods.  The angle input does not matter in this case.
+                    if not util.check_if_arrived(pid.format_model_state(pos_node),format_target_from_msg(input_pose)):
+                        start_goal_msg = make_start_goal_msg(target_pose_node,pos_node)
+                        start_goal_pub.publish(start_goal_msg)
+                        msg_count = 0
+                        is_traj_processed = False
+                        target_received = True
+                        r.sleep()
+                    else:
+                        rospy.loginfo('Already at target location.')
             is_first = True
 
             while not is_traj_processed and not rospy.is_shutdown():
@@ -225,7 +224,14 @@ def main():
             rospy.loginfo('robot arrived at goal')
             target_received = False
 
-            
+def wait_for_model_pose(cur_pose_received, pos_node):
+    is_first=True
+    while not cur_pose_received and not rospy.is_shutdown():
+        is_first = status_msg('waiting for model pose',is_first)
+                # pid.debug_info('pos_node.isreceived()',is_received=pos_node.is_received())
+        if pos_node.is_received():
+            cur_pose_received = True
+
 
 
 if __name__ == "__main__":

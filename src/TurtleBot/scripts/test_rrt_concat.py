@@ -13,14 +13,16 @@ if __name__ == "__main__":
     #setup test node
     rrt.rospy.init_node('test_rrt_node')
     map_node = rrt.SubscriberNode_Map(topic='/map',msg=OccupancyGrid,msg_object=OccupancyGrid())
-    x_origin = map_node.data.info.origin.position.x
-    y_origin = map_node.data.info.origin.position.y
-    resolution = map_node.data.info.resolution
+    
     #verify map is received
     rec_map = False
     while not rospy.is_shutdown() and not rec_map:
         if not map_node.current_map is None:
             rec_map = True
+
+    x_origin = map_node.data.info.origin.position.x
+    y_origin = map_node.data.info.origin.position.y
+    resolution = map_node.data.info.resolution
     #perform test
     if test_num == 0:
         while not rospy.is_shutdown():
@@ -42,9 +44,10 @@ if __name__ == "__main__":
         for kk in range(384):
             print('(%d,%d) has value %d' % (row,kk,map_node.current_map[row,kk]))
     elif test_num == 3:
-        write_out_file = False #lets you write results to a file
+        write_out_file = True #lets you write results to a file
         # this lets you see the first and last known values in each row of an image
-        out_file = open('occ_data.txt','w')
+        fname_out = 'occ_data_beg.txt'
+        out_file = open(fname_out,'w')
         first_known_found = False
         for ii in range(384):
             for jj in range(384):
@@ -52,15 +55,16 @@ if __name__ == "__main__":
                     if write_out_file:
                         print >> out_file, 'row %d, first_known = (%d,%d)' % (ii,ii,jj)
                     else:
-                        print 'row %d, first_known = (%d,%d)' % (ii,ii,jj)
+                        print('row %d, first_known = (%d,%d)' % (ii,ii,jj))
                     first_known_found = True
                 if map_node.current_map[ii,jj] == -1 and first_known_found:
                     if write_out_file:
                         print >> out_file, 'row %d, last_known = (%d,%d)' % (ii,ii,jj)
                     else:
-                        print 'row %d, first_known = (%d,%d)' % (ii,ii,jj)
+                        print('row %d, first_known = (%d,%d)' % (ii,ii,jj))
                     first_known_found = False
                     break
+        out_file.close()
     elif test_num == 4:
         # check value of individual cell
         a = 190
@@ -71,5 +75,5 @@ if __name__ == "__main__":
         print(rrt.convert_index_to_real(190,resolution,y_origin))
         print(rrt.convert_index_to_real(300,resolution,x_origin))
         print(rrt.convert_index_to_real(190,resolution,y_origin))
-    elif test_num == 6:
+    # elif test_num == 6:
         
