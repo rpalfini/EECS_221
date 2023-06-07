@@ -8,6 +8,7 @@ from scipy.misc import imread
 import random, sys, math, os.path
 import cv2
 import pickle
+import click
 
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Float64MultiArray
