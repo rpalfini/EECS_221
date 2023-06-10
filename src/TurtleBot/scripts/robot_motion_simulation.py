@@ -3,13 +3,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow import keras
+from tensorflow import keras as K
+import plot_utils
 
 
 def main():
 
     # options
     plot_data = True
+    train_model = True  # not implemented yet, keep as True
+    shuffle_data = True
 
     # NN variables
     input_data = []
@@ -19,7 +22,7 @@ def main():
     # sim_length = 6000
     sim_length = 30
     q_values = []  # List to store computed values of q
-    u_values = []  # List to store values of u used
+    u_values = []  # List to store values of u used]
     Ts = 0.033  # Sampling time
     t = np.arange(0, sim_length + Ts, Ts)  # Simulation time
     q = np.array([1.1, 0.8, 0])  # Initial robot pose
@@ -109,51 +112,42 @@ def main():
         u_values.append(u)
 
     if plot_data:
-        plot_traj(q_values)
+        plot_utils.plot_traj(q_values)
+        plot_utils.plot_columns_against_time(np.array(u_values), Ts)
+        plot_utils.plot_columns_against_time(np.array(q_values), Ts)
 
     input_data = np.array(q_values)  # this should be q values
-    output_data = np.array(u_values)  # this should be uRef
+    output_data = np.array(u_values)  # this should be u values
+    if shuffle_data:
+        combined_data = np.concatenate((input_data, output_data), axis=1)
+        np.random.shuffle(combined_data)
+        input_data = combined_data[:, :3]
+        output_data = combined_data[:, 3:]
 
-    train_ratio = 0.8
-    train_samples = int(train_ratio * len(input_data))
-    x_train = input_data[:train_samples]
-    y_train = output_data[:train_samples]
-    x_test = input_data[train_samples:]
-    y_test = output_data[train_samples:]
+    if train_model:
+        train_ratio = 0.8
+        train_samples = int(train_ratio * len(input_data))
+        x_train = input_data[:train_samples]
+        y_train = output_data[:train_samples]
+        x_test = input_data[train_samples:]
+        y_test = output_data[train_samples:]
 
-    # model = keras.Sequential([
-    #     keras.layers.Dense(128 , activation='relu', input_shape=(3,)),
-    #     keras.layers.Dense(128 , activation='relu'),
-    #     keras.layers.Dense(128 , activation='relu'),
-    #     keras.layers.Dense(128 , activation='relu'),
-    #     keras.layers.Dense(128 , activation='relu'),
-    #     keras.layers.Dense(128 , activation='relu'),
-    #     keras.layers.Dense(128 , activation='relu'),
-    #     keras.layers.Dense(128 , activation='relu'),
-    #     keras.layers.Dense(2)W
-    #  ])
+        num_layers = 30
+        neurons = 128
+        model = K.Sequential()
+        model.add(K.layers.Dense(neurons, activation='relu', input_shape=(3,)))
+        for ii in range(num_layers):
+            model.add(K.layers.Dense(neurons, activation='relu'))
+        model.add(K.layers.Dense(2))
 
-    model = keras.Sequential()
-    model.add(keras.layers.Dense(128, activation='relu', input_shape=(3,)))
-    for ii in range(30):
-        model.add(keras.layers.Dense(128, activation='relu'))
-    model.add(keras.layers.Dense(2))
+        # model.compile(optimizer='adam', loss='mse', run_eagerly=True)
+        model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
 
-    model.compile(optimizer='adam', loss='mse', run_eagerly=True)
+        result = model.fit(x_train, y_train, epochs=20,
+                           batch_size=32, validation_data=(x_test, y_test))
+        model.save('trained_model_MPC.h5')
 
-    result = model.fit(x_train, y_train, epochs=60,
-                       batch_size=32, validation_data=(x_test, y_test))
-    model.save('trained_model_MPC.h5')
-
-
-def plot_traj(q_values):
-    x = [vector[0] for vector in q_values]
-    y = [vector[1] for vector in q_values]
-    plt.plot(x, y, 'o')
-    plt.ion()
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    plt.title('X-Y Plot')
+    plot_utils.plot_hist(result.history, logscale=0)
     plt.show()
 
 
