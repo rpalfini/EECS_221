@@ -176,7 +176,7 @@ def main():
 
         elif testing_problem == 3:
             wait_for_model_pose(cur_pose_received, pos_node)
-
+            
             while not target_received and not rospy.is_shutdown():
                 is_first = status_msg('waiting for target location',is_first)
                 # if not target_pose_node.data.data == [] and not target_pose_node.data.data == prev_traj:
