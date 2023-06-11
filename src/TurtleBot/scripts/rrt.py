@@ -14,6 +14,7 @@ from std_msgs.msg import Float64MultiArray
 import pickle
 import time
 import os
+from collections import deque
 
 dbg = True
 MIN_NUM_VERT = 20 # Minimum number of vertex in the graph
@@ -281,13 +282,21 @@ def extend_obstacles(my_map, radius):
 
     return my_map, binary_map, dilated_map, extended_obstacles
 
-
-def find_path_RRT(start,goal,my_map):
+def process_map(my_map):
   global robot_radius
   global use_dilated_map
   my_map = cv2.cvtColor(map_img(my_map), cv2.COLOR_GRAY2BGR)[::-1]
   if use_dilated_map:
     _,_,_,my_map = extend_obstacles(my_map,robot_radius)
+  return my_map
+
+def find_path_RRT(start,goal,my_map):
+  global robot_radius
+  global use_dilated_map
+  # my_map = cv2.cvtColor(map_img(my_map), cv2.COLOR_GRAY2BGR)[::-1]
+  # if use_dilated_map:
+  #   _,_,_,my_map = extend_obstacles(my_map,robot_radius)
+  my_map = process_map(my_map)
   path,graph = rapidlyExploringRandomTree(my_map, start, goal, seed=None)
   return path,graph
 
@@ -324,10 +333,18 @@ def get_index_from_coordinates(start_goal_data,map_node):
   start_goal_index = (x_start_index,y_start_index,x_goal_index,y_goal_index)
   return start_goal_index
 
-def check_if_valid_input(start_goal_data,map_node):
+def check_if_valid_goal(start_goal_data,map_node):
   start_goal_index = get_index_from_coordinates(start_goal_data,map_node)
-  start_index, goal_index = get_start_goal(start_goal_index)
-  if check_cell_open(start_index,map_node) and check_cell_open(goal_index,map_node):
+  _, goal_index = get_start_goal(start_goal_index)
+  if check_cell_open(goal_index,map_node):
+     return True
+  else:
+     return False
+
+def check_if_valid_start(start_goal_data,map_node):
+  start_goal_index = get_index_from_coordinates(start_goal_data,map_node)
+  start_index, _ = get_start_goal(start_goal_index)
+  if check_cell_open(start_index,map_node):
      return True
   else:
      return False
@@ -335,18 +352,20 @@ def check_if_valid_input(start_goal_data,map_node):
 def check_cell_open(cell,map_node):
   # checks if a cell is open or occupied/unknown.  cell should be two numbers [x,y] for the map pixel index
   # if map_node.current_map[cell[0]][cell[1]] == 100:
-  if query_map_cell_value(map_node,cell[0],cell[1]) == 0:
+  if query_map_cell_value(map_node,cell[0],cell[1]) == 255:
      return True
   else:
      return False
 
 def query_map_cell_value(map_node,x,y,is_index = True):
+  # returns the value of map_cell as seen by rrt algo
+  my_map = process_map(map_node.current_map) # this converts map to be as seen by rrt algo
   if is_index:
-    return map_node.current_map[y][x]
+    return my_map[y][x][0]
   else:
     x_ind = convert_real_to_index(x,map_node.data.info.origin.position.x,map_node.data.info.resolution)
     y_ind = convert_real_to_index(y,map_node.data.info.origin.position.y,map_node.data.info.resolution)
-    return map_node.current_map[y_ind][x_ind]
+    return my_map[y_ind][x_ind][0]
 
 def arg_parse():
   args = {}
@@ -399,10 +418,16 @@ def main():
   while not is_first_point_rec and not rospy.is_shutdown():
     is_first = mp.status_msg('Waiting for first start_goal',is_first)
     if not start_goal_node.data.data == []:
-      if check_if_valid_input(start_goal_node.data.data,map_node):
-      # if True:
+      if check_if_valid_goal(start_goal_node.data.data,map_node):
+        if check_if_valid_start(start_goal_node.data.data,map_node):
+          cur_start_goal = start_goal_node.data.data
+          last_queued = cur_start_goal
+        else:
+          # sometimes the start position is considered an invalid cell to rrt so pick a cell as close as possible that is unoccupied
+          last_queued = start_goal_node.data.data
+          new_start = reassign_start_point(start_goal_node.data.data,map_node)
+          cur_start_goal = [new_start[0],new_start[1],start_goal_node.data.data[2],start_goal_node.data.data[3]]
         is_first_point_rec = True
-        cur_start_goal = start_goal_node.data.data
       else:
         if start_goal_node.data.data != last_rec_point:
           index_coords = get_index_from_coordinates(start_goal_node.data.data,map_node)
@@ -438,7 +463,8 @@ def main():
         # plot_traj_found_extended_map(path)
         plot_traj_found(path,image_path,map_node.data.info)
 
-    if not cur_start_goal == start_goal_node.data.data:
+    
+    if not last_queued == start_goal_node.data.data:
       rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
       cur_start_goal = start_goal_node.data.data
       is_traj_computed = False
@@ -529,13 +555,80 @@ def plot_traj_found_extended_map(path,image_path):
   plt.plot(x_coords,y_coords,color='red',linewidth=2)
   plt.show()
    
-
 def output_dbg_info(fheader,**kwargs):
   current_time = time.strftime("%Y%m%d%H%M%S")
   file_name = fheader + '_' + current_time + '.pkl'
   with open(file_name, 'wb') as file:
     # Write the data to the file using pickle.dump()
     pickle.dump(kwargs, file)
+
+def reassign_start_point(start_goal_data,map_node):
+  # use this as bandaid for issue where start point is shownas occupied to RRT and it cannot find a solution
+  start_goal_index = get_index_from_coordinates(start_goal_data,map_node)
+  start_index, _ = get_start_goal(start_goal_index)
+  my_map = process_map(map_node.current_map)
+  new_start_index = find_closest_cell(my_map[:,:,0],[start_index[1],start_index[0]])
+  new_start_real = convert_coordinate_pair2real(new_start_index,map_node)
+  return new_start_real
+
+def convert_coordinate_pair2real(cell_index,map_node):
+  x_origin = map_node.data.info.origin.position.x
+  y_origin = map_node.data.info.origin.position.y
+  resolution = map_node.data.info.resolution
+  cell_real = []
+  cell_real.append(convert_index_to_real(cell_index[0],x_origin,resolution))
+  cell_real.append(convert_index_to_real(cell_index[1],y_origin,resolution))
+  return cell_real
+
+def find_closest_cell(arr, start):
+    """
+    Finds the closest cell with value 255 to the requested cell with value 0 in a 2D array.
+
+    Arguments:
+    arr -- 2D list representing the array
+    start -- Tuple (row, column) representing the starting cell with value 0
+
+    Returns:
+    Tuple (row, column) representing the closest cell with value 255, or None if no such cell is found.
+
+    Example:
+    arr = [[0, 0, 255, 0, 0],
+           [0, 255, 0, 255, 0],
+           [255, 0, 0, 0, 255],
+           [0, 255, 0, 255, 0],
+           [0, 0, 255, 0, 0]]
+
+    start = (2, 2)
+
+    Output:
+    (1, 1)
+    """
+    rows, cols = len(arr), len(arr[0])
+    visited = [[False] * cols for _ in range(rows)]
+
+    queue = deque()
+    queue.append(start)
+    visited[start[0]][start[1]] = True
+
+    while queue:
+        row, col = queue.popleft()
+
+        # Check if the current cell has a value of 255
+        if arr[row][col] > 250:
+            # return (row, col)
+            return (col, row)
+
+        # Explore neighboring cells
+        neighbors = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+        for neighbor_row, neighbor_col in neighbors:
+            # Check if the neighboring cell is within the array bounds and hasn't been visited
+            if 0 <= neighbor_row < rows and 0 <= neighbor_col < cols and not visited[neighbor_row][neighbor_col]:
+                queue.append((neighbor_row, neighbor_col))
+                visited[neighbor_row][neighbor_col] = True
+
+    # If no cell with value 255 is found
+    return None
+
 
 if __name__ == "__main__":
   main()
