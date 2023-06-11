@@ -129,9 +129,9 @@ def calc_vec_err(cur_state, target):
     return x_err, y_err
 
 
-def check_if_arrived(pose, target):
+def check_if_arrived(pose, target, pos_err = 0.05):
     err_pos, _ = calc_error(pose, target)
-    if abs(err_pos) <= 0.05:
+    if abs(err_pos) <= pos_err:
         is_arrived = True
         # rospy.loginfo('Arrived at target location: %.2f, %.2f with error %.3f' % (target[0],target[1],err_pos))
     else:

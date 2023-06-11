@@ -265,6 +265,9 @@ def findNearestPoint(points, point):
   return (best[0], best[1])
 
 def extend_obstacles(my_map, radius):
+    # record unknown cells
+    # unknown_idx = np.argwhere(my_map[:,:,0] == 100)
+
     # Threshold the grayscale image to get the binary map
     _, binary_map = cv2.threshold(my_map, 127, 255, cv2.THRESH_BINARY_INV)
 
@@ -280,14 +283,29 @@ def extend_obstacles(my_map, radius):
     # Invert the dilated map to get the extended obstacles
     extended_obstacles = cv2.bitwise_not(dilated_map)
 
+    # # # re-add the cells whoose value is unknown i.e. == 100
+    # new_value = 100
+    # # extend_obstacles[unknown_idx[:,0],unknown_idx[:,1],0]
+    # for idx in unknown_idx:
+    #   extended_obstacles[idx[0],idx[1],0] =
+    # # non_zero_indices = extended_obstacles[unknown_idx[:, 0], unknown_idx[:, 1],0] != 0
+    # # extended_obstacles[unknown_idx[non_zero_indices, 0], unknown_idx[non_zero_indices, 1],0] = new_value
+
+
     return my_map, binary_map, dilated_map, extended_obstacles
 
 def process_map(my_map):
   global robot_radius
   global use_dilated_map
   my_map = cv2.cvtColor(map_img(my_map), cv2.COLOR_GRAY2BGR)[::-1]
-  if use_dilated_map:
-    _,_,_,my_map = extend_obstacles(my_map,robot_radius)
+  try: # this is a band aid b/c I shouldnt have used global variables...
+    if use_dilated_map:
+      _,_,_,my_map = extend_obstacles(my_map,robot_radius)
+  except:
+    use_dilated_map = True
+    robot_radius = 3.7
+    if use_dilated_map:
+      _,_,_,my_map = extend_obstacles(my_map,robot_radius)
   return my_map
 
 def find_path_RRT(start,goal,my_map):
@@ -417,24 +435,40 @@ def main():
   is_first = True
   while not is_first_point_rec and not rospy.is_shutdown():
     is_first = mp.status_msg('Waiting for first start_goal',is_first)
-    if not start_goal_node.data.data == []:
+    if not start_goal_node.data.data == []: 
+      last_queued = start_goal_node.data.data
       if check_if_valid_goal(start_goal_node.data.data,map_node):
-        if check_if_valid_start(start_goal_node.data.data,map_node):
-          cur_start_goal = start_goal_node.data.data
-          last_queued = cur_start_goal
-        else:
-          # sometimes the start position is considered an invalid cell to rrt so pick a cell as close as possible that is unoccupied
-          last_queued = start_goal_node.data.data
-          new_start = reassign_start_point(start_goal_node.data.data,map_node)
-          cur_start_goal = [new_start[0],new_start[1],start_goal_node.data.data[2],start_goal_node.data.data[3]]
-        is_first_point_rec = True
+        can_goal = [start_goal_node.data.data[2],start_goal_node.data.data[3]]
       else:
-        if start_goal_node.data.data != last_rec_point:
-          index_coords = get_index_from_coordinates(start_goal_node.data.data,map_node)
-          start_cell_val = map_node.current_map[index_coords[0],index_coords[1]]
-          end_cell_val = map_node.current_map[index_coords[2],index_coords[3]]
-          rospy.loginfo('invalid start_goal received (%.2f,%.2f)_(%.2f,%.2f) due to cell values %d and %d' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],start_cell_val,end_cell_val))
-          last_rec_point = start_goal_node.data.data
+        rospy.loginfo('goal reassigned')
+        can_goal = reassign_goal_point(start_goal_node.data.data,map_node)
+
+      if check_if_valid_start(start_goal_node.data.data,map_node):
+        # cur_start_goal = start_goal_node.data.data
+        can_start = [start_goal_node.data.data[0],start_goal_node.data.data[1]]
+      else:
+        # sometimes the start position is considered an invalid cell to rrt so pick a cell as close as possible that is unoccupied
+        rospy.loginfo('start reassigned')
+        can_start = reassign_start_point(start_goal_node.data.data,map_node)
+      cur_start_goal = [can_start[0],can_start[1],can_goal[0],can_goal[1]]
+      is_first_point_rec = True
+      # if check_if_valid_goal(start_goal_node.data.data,map_node):
+      #   if check_if_valid_start(start_goal_node.data.data,map_node):
+      #     cur_start_goal = start_goal_node.data.data
+      #     last_queued = cur_start_goal
+      #   else:
+      #     # sometimes the start position is considered an invalid cell to rrt so pick a cell as close as possible that is unoccupied
+      #     last_queued = start_goal_node.data.data
+      #     new_start = reassign_start_point(start_goal_node.data.data,map_node)
+      #     cur_start_goal = [new_start[0],new_start[1],start_goal_node.data.data[2],start_goal_node.data.data[3]]
+      #   is_first_point_rec = True
+      # else:
+      #   if start_goal_node.data.data != last_rec_point:
+      #     index_coords = get_index_from_coordinates(start_goal_node.data.data,map_node)
+      #     start_cell_val = map_node.current_map[index_coords[0],index_coords[1]]
+      #     end_cell_val = map_node.current_map[index_coords[2],index_coords[3]]
+      #     rospy.loginfo('invalid start_goal received (%.2f,%.2f)_(%.2f,%.2f) due to cell values %d and %d' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],start_cell_val,end_cell_val))
+      #     last_rec_point = start_goal_node.data.data
 
   rospy.loginfo('first start_goal received (%.2f,%.2f)_(%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
 
@@ -464,10 +498,44 @@ def main():
         plot_traj_found(path,image_path,map_node.data.info)
 
     
-    if not last_queued == start_goal_node.data.data:
-      rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
-      cur_start_goal = start_goal_node.data.data
+    if not last_queued == start_goal_node.data.data:     
+      last_queued = start_goal_node.data.data
+      if check_if_valid_goal(start_goal_node.data.data,map_node):
+        can_goal = [start_goal_node.data.data[2],start_goal_node.data.data[3]]
+      else:
+        can_goal = reassign_goal_point(start_goal_node.data.data,map_node)
+
+      if check_if_valid_start(start_goal_node.data.data,map_node):
+        # cur_start_goal = start_goal_node.data.data
+        can_start = [start_goal_node.data.data[0],start_goal_node.data.data[1]]
+      else:
+        # sometimes the start position is considered an invalid cell to rrt so pick a cell as close as possible that is unoccupied
+        can_start = reassign_start_point(start_goal_node.data.data,map_node)
+      cur_start_goal = [can_start[0],can_start[1],can_goal[0],can_goal[1]]
+          
+        # else:
+        #   if start_goal_node.data.data != last_rec_point:
+        #     index_coords = get_index_from_coordinates(start_goal_node.data.data,map_node)
+        #     start_cell_val = map_node.current_map[index_coords[0],index_coords[1]]
+        #     end_cell_val = map_node.current_map[index_coords[2],index_coords[3]]
+        #     rospy.loginfo('invalid start_goal received (%.2f,%.2f)_(%.2f,%.2f) due to cell values %d and %d' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],start_cell_val,end_cell_val))
+        #     last_rec_point = start_goal_node.data.data
+      
+      # rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (start_goal_node.data.data[0],start_goal_node.data.data[1],start_goal_node.data.data[2],start_goal_node.data.data[3],cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3]))
+      rospy.loginfo('new start_goal received (%.2f,%.2f,%.2f,%.2f), old_goal is (%.2f,%.2f,%.2f,%.2f)' % (cur_start_goal[0],cur_start_goal[1],cur_start_goal[2],cur_start_goal[3],last_queued[0],last_queued[1],last_queued[2],last_queued[3]))
       is_traj_computed = False
+
+def process_start_goal():
+  if check_if_valid_goal(start_goal_node.data.data,map_node):
+        if check_if_valid_start(start_goal_node.data.data,map_node):
+          cur_start_goal = start_goal_node.data.data
+          last_queued = cur_start_goal
+        else:
+          # sometimes the start position is considered an invalid cell to rrt so pick a cell as close as possible that is unoccupied
+          last_queued = start_goal_node.data.data
+          new_start = reassign_start_point(start_goal_node.data.data,map_node)
+          cur_start_goal = [new_start[0],new_start[1],start_goal_node.data.data[2],start_goal_node.data.data[3]]
+  
 
 def load_map(map_node, is_first=True, is_map_loaded=False):
     while not is_map_loaded and not rospy.is_shutdown():
@@ -496,6 +564,20 @@ def convert_traj_to_real(traj_list,map_info):
            is_x_coord = True
         real_traj.append(convert_index_to_real(point,origin,resolution))
     return real_traj
+
+def convert_traj_to_index(traj_list,map_info):
+    index_traj = []
+    is_x_coord = True
+    resolution = map_info.resolution
+    for point in traj_list:
+        if is_x_coord:
+           origin = map_info.origin.position.x
+           is_x_coord = False
+        else:
+           origin = map_info.origin.position.y
+           is_x_coord = True
+        index_traj.append(convert_real_to_index(point,origin,resolution))
+    return index_traj
 
 def convert_index_to_real(index,origin,resolution):
     return index*resolution + origin
@@ -570,6 +652,14 @@ def reassign_start_point(start_goal_data,map_node):
   new_start_index = find_closest_cell(my_map[:,:,0],[start_index[1],start_index[0]])
   new_start_real = convert_coordinate_pair2real(new_start_index,map_node)
   return new_start_real
+
+def reassign_goal_point(start_goal_data,map_node):
+  start_goal_index = get_index_from_coordinates(start_goal_data,map_node)
+  start_index, goal_index = get_start_goal(start_goal_index)
+  my_map = process_map(map_node.current_map)
+  new_goal_index = find_closest_cell(my_map[:,:,0],[goal_index[1],goal_index[0]])
+  new_goal_real = convert_coordinate_pair2real(new_goal_index,map_node)
+  return new_goal_real
 
 def convert_coordinate_pair2real(cell_index,map_node):
   x_origin = map_node.data.info.origin.position.x

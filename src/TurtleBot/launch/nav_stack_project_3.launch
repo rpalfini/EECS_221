@@ -1,5 +1,5 @@
 <launch>
-  <node name="explorer" pkg="TurtleBot" type="explorer.py" output="screen">
+  <node name="explorer_node" pkg="TurtleBot" type="explorer.py" output="screen">
   </node>
 
   <!-- Launch PID_Controller node -->
@@ -10,7 +10,7 @@
   <!-- Launch RRT node -->
   <node name="rrt_node" pkg="TurtleBot" type="rrt.py" output="screen">
     <!-- Add any arguments or parameters required for the RRT node -->
-    <param name="plot_traj" type="bool" value="true"/>
+    <param name="plot_traj" type="bool" value="false"/>
   </node>
 
   <!-- Launch Motion_Planner node -->

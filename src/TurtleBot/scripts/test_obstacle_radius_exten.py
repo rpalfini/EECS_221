@@ -1,6 +1,11 @@
+#!/usr/bin/env python2
+
 import cv2
 # from rrt import map_img
 import numpy as np
+import rrt
+import rospy
+from nav_msgs.msg import OccupancyGrid
 
 def extend_obstacles(my_map, radius):
     # Threshold the grayscale image to get the binary map
@@ -35,12 +40,19 @@ def map_img(arr):
 
 
 if __name__ == "__main__":
+    rospy.init_node('test_map')
     
-    map_in = cv2.imread('my_map.pgm')
-    print(map_in)
-    # map_in = cv2.cvtColor(map_img(map_in), cv2.COLOR_GRAY2BGR)[::-1]
-    print(len(map_in))
-    robot_radius = 0.4
+    use_map_subscribe = True
+    if use_map_subscribe:
+        map_node = rrt.SubscriberNode_Map('/map',OccupancyGrid,OccupancyGrid())
+        rrt.load_map(map_node)
+        map_in = cv2.cvtColor(map_img(map_node.current_map), cv2.COLOR_GRAY2BGR)[::-1]
+    else:
+        map_in = cv2.imread('my_map.pgm')
+        print(map_in)
+        # map_in = cv2.cvtColor(map_img(map_in), cv2.COLOR_GRAY2BGR)[::-1]
+        print(len(map_in))
+    robot_radius = 3.7
     my_map, binary_map, dilated_map, extended_map = extend_obstacles(map_in, robot_radius)
     # my_map, binary_map, dilated_map = extend_obstacles(map_in, robot_radius)
 
