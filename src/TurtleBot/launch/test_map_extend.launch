@@ -1,0 +1,4 @@
+<launch>
+  <node name="test_obstacle_radius_extend_node" pkg="TurtleBot" type="test_obstacle_radius_exten.py" output="screen">
+  </node>
+</launch>
