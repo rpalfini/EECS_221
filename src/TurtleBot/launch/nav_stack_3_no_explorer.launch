@@ -1,7 +1,4 @@
 <launch>
-  <node name="explorer" pkg="TurtleBot" type="explorer.py" output="screen">
-  </node>
-
   <!-- Launch PID_Controller node -->
   <node name="pid_controller_node" pkg="TurtleBot" type="PID_Controller.py" output="screen">
     <!-- Add any arguments or parameters required for the PID_Controller node -->
