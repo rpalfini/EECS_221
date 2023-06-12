@@ -138,6 +138,7 @@ def main():
         model.add(K.layers.Dense(neurons, activation='relu', input_shape=(3,)))
         for ii in range(num_layers):
             model.add(K.layers.Dense(neurons, activation='relu'))
+        # default activation is linear which is needed for regression
         model.add(K.layers.Dense(2))
 
         # model.compile(optimizer='adam', loss='mse', run_eagerly=True)

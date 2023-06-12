@@ -1,7 +1,14 @@
-#!/usr/bin/env python3.9
+#!/usr/bin/env python2
 
+import rospy
 import numpy as np
 import matplotlib.pyplot as plt
-import tensorflow as tf
-from tensorflow import keras as K
 import plot_utils
+
+
+def main():
+    rospy.init_node('NN_controller_node')
+
+
+if __name__ == "__main__":
+    main()
