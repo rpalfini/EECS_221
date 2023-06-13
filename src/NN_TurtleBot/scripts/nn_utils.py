@@ -19,5 +19,5 @@ def make_dense_NN(num_layers, input_neurons, hidden_neurons, output_neurons, hid
 
 def import_data_file(file_path, *headers):
     data_frame = pd.read_csv(file_path)
-    selected_data = data_frame[headers]
+    selected_data = data_frame[list(headers)]
     return selected_data
