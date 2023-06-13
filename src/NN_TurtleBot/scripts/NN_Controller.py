@@ -8,6 +8,7 @@ import plot_utils
 
 def main():
     rospy.init_node('NN_controller_node')
+    
 
 
 if __name__ == "__main__":
