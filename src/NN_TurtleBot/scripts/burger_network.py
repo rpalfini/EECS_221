@@ -11,6 +11,7 @@ import tensorflow as tf
 from tensorflow import keras as K
 import plot_utils
 import nn_utils
+import pickle
 
 
 def import_data(input_fpath, ref_fpath, output_fpath):
@@ -178,7 +179,7 @@ def main():
     x_train = input_data[:train_samples]
     x_test = input_data[train_samples:]
     y_train = output_data[:train_samples]
-    y_test = output_data[:train_samples]
+    y_test = output_data[train_samples:]
 
     num_layers = 20
     input_neurons = 5
@@ -193,17 +194,30 @@ def main():
     loss = 'mse'
     metrics = ['accuracy']
 
+    # num_layers = 20
+    # neurons = 128
+
     model = nn_utils.make_dense_NN(
         num_layers, input_neurons, hidden_neurons, output_neurons, hidden_act, output_act)
+    # model.add(K.layers.Dense(neurons, activation='relu', input_shape=(5,)))
+    # for ii in range(num_layers):
+    #     model.add(K.layers.Dense(neurons, activation='relu'))
+    #     # default activation is linear which is needed for regression
+    # model.add(K.layers.Dense(2))
+
 
     model.compile(optimizer=opti, loss=loss, metrics=metrics)
 
     result = model.fit(x_train, y_train, epochs=epochs,
                        batch_size=batch_size, validation_data=(x_test, y_test))
-    model.save('trained_model_gazebo.h5')
+    mname = 'model_e%d_b%d_l%d_n%d' % (epochs,batch_size,num_layers,hidden_neurons)
+    model.save(mname+'.h5')
+    # model.save('trained_model_gazebo.h5')
 
-    plot_utils.plot_hist(result.history, logscale=0)
+    plot_utils.plot_hist(result.history)
+    plt.savefig(mname+'.png')
     plt.show()
+
 
 
 if __name__ == "__main__":

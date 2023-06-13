@@ -62,8 +62,8 @@ def plot_columns_against_time(data, time_step):
     for i in range(num_columns):
         axs[i].plot(time, data[:, i])
         axs[i].set_xlabel('Time')
-        axs[i].set_ylabel(f'Column {i+1}')
-        axs[i].set_title(f'Column {i+1} vs. Time')
+        axs[i].set_ylabel('Column {}'.format(i+1))
+        axs[i].set_ylabel('Column {} vs. Time'.format(i+1))
 
     # Adjust the spacing between subplots
     plt.tight_layout()
