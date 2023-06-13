@@ -1,13 +1,14 @@
 #!/usr/bin/env python2
 
 import rospy
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 import plot_utils
 from std_msgs.msg import Float64MultiArray
 from gazebo_msgs.msg import ModelStates
 from geometry_msgs.msg import Twist
-import keras as K
+from tf.transformations import euler_from_quaternion
 from keras.models import load_model
 import tensorflow as tf
 
@@ -44,15 +45,24 @@ def main():
     loaded_model = tf.keras.models.load_model(model_path,compile=False)
 
     # wait for model state to load
-
+    is_first = True
+    while not rospy.is_shutdown() and not pos_node.is_received():
+        if is_first:
+            rospy.loginfo('waiting for model state')
+            is_first = False
 
     # wait for ref_msg
+    is_first = True
+    while not rospy.is_shutdown() and not ref_pose_node.is_received():
+        if is_first:
+            rospy.loginfo('waiting for ref_msg')
+            is_first = False
 
-
-
+    is_first = True
     is_first_msg = True
+    # start main loop
     while not rospy.is_shutdown():
-        if at_goal():
+        if at_goal(format_model_state(pos_node),ref_pose_node.data.data):
             if is_first_msg:
                 rospy.loginfo('arrived at goal')
                 is_first_msg = False
@@ -60,6 +70,9 @@ def main():
             is_first_msg = True
             nn_input = make_nn_input(pos_node,ref_pose_node)
             u = loaded_model.predict(np.array([nn_input]))[0]
+            cmd_msg = make_cmd_msg(u)
+            cmd_pub.publish(cmd_msg)
+            r.sleep()
 
 
 def make_cmd_msg(u):
@@ -77,8 +90,29 @@ def make_nn_input(pos_node,ref_pose_node):
     return nn_input
 
 
-def at_goal():
-    return False
+def calc_error(cur_state, target):
+    # cur_state is a dictonary with field pose (geometry_msg Point, and field theta with a radian angle
+    # target is a length 2 iterable that has the x and y coordinates of final location
+    pose = cur_state['pose']
+    theta = cur_state['theta']
+    x_err, y_err = calc_vec_err(cur_state, target)
+    err_pos = math.sqrt(x_err**2 + y_err**2)
+    return err_pos
+
+
+def calc_vec_err(cur_state, target):
+    x_err = target[0] - cur_state['pose'].x
+    y_err = target[1] - cur_state['pose'].y
+    return x_err, y_err
+
+
+def at_goal(pose, target, pos_err = 0.05):
+    err_pos = calc_error(pose, target)
+    if abs(err_pos) <= pos_err:
+        is_arrived = True
+    else:
+        is_arrived = False
+    return is_arrived
 
 
 def find_model_index(pos_node):
